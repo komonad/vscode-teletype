@@ -1,4 +1,61 @@
-declare module '@atom/teletype-client' {
+declare module "@atom/teletype-client" {
+
+    export interface Position {
+        row: number;
+        column: number;
+    }
+    
+    export interface TextUdpate {
+        oldStart: Position;
+        oldEnd: Position;
+        newStart?: Position;
+        newEnd?: Position;
+        oldText?: string;
+        newText: string;
+    }
+
+    export interface Range {
+        start: Position;
+        end: Position;
+    }
+    
+    export interface Selection {
+        exclusive?: boolean;
+        range: Range;
+        reversed: boolean;
+        tailed?: boolean;
+    }
+    
+    export interface SelectionMap {
+        [markerId: number]: Selection;
+    }
+
+    export interface BufferDelegate {
+        dispose(): void;
+        setText(text: string): void;
+        didChangeURI(text: string): void;
+        save(): void;   
+        updateText(textUpdates: TextUdpate[]): void;
+    }
+
+    export interface EditorDelegate {
+        dispose(): void;
+        updateSelectionsForSiteId(id: number, selections: SelectionMap): void;
+        isScrollNeededToViewPosition(position: Position): boolean;
+        clearSelectionsForSiteId(id: number): void;
+        updateTether(state: number, position: Position): void;
+    }
+
+    export interface PortalDelegate {
+        dispose(): void;
+        updateTether(state: number, editorProxy: EditorProxy, position: Position): Promise<void>;
+        updateActivePositions(positionsBySiteId: Position): void;
+        hostDidLoseConnection(): void;
+        hostDidLoseConnection(): void;
+        siteDidLeave(siteId: string): void;
+        siteDidJoin(siteId: string): void;
+        didChangeEditorProxies(): void;
+    }
 
     export class BufferProxy {
         id: string;
@@ -33,7 +90,7 @@ declare module '@atom/teletype-client' {
 
         onDidUpdateMarkers(...args: any[]): void;
 
-        onDidUpdateText(listener: any): any;
+        onDidUpdateText(handler: (value?: any) => void): any;
 
         receiveFetch(...args: any[]): void;
 
@@ -45,7 +102,7 @@ declare module '@atom/teletype-client' {
 
         receiveUpdate(...args: any[]): void;
 
-        redo(...args: any[]): void;
+        redo(): void;
 
         requestSave(...args: any[]): void;
 
@@ -53,18 +110,17 @@ declare module '@atom/teletype-client' {
 
         serialize(): void;
 
-        setDelegate(delegate: any): void;
+        setDelegate(delegate: BufferDelegate): void;
 
-        setTextInRange(oldStart: any, oldEnd: any, newText: string): void;
+        setTextInRange(oldStart: Position, oldEnd: Position, newText: string): void;
 
         setURI(...args: any[]): void;
 
-        undo(...args: any[]): void;
+        undo(): void;
 
         updateMarkers(...args: any[]): void;
 
         static deserialize(...args: any[]): void;
-
     }
 
     export class EditorProxy {
@@ -105,7 +161,7 @@ declare module '@atom/teletype-client' {
 
         serialize(...args: any[]): void;
 
-        setDelegate(...args: any[]): void;
+        setDelegate(delegate: EditorDelegate): void;
 
         showSelections(...args: any[]): void;
 
@@ -114,7 +170,6 @@ declare module '@atom/teletype-client' {
         updateSelections(...args: any[]): void;
 
         static deserialize(...args: any[]): void;
-
     }
 
     export class EditorProxyMetadata {
@@ -127,7 +182,6 @@ declare module '@atom/teletype-client' {
         serialize(...args: any[]): void;
 
         static deserialize(...args: any[]): void;
-
     }
 
     export class NullEditorProxyDelegate {
@@ -144,7 +198,6 @@ declare module '@atom/teletype-client' {
         updateSelectionsForSiteId(...args: any[]): void;
 
         updateTether(...args: any[]): void;
-
     }
 
     export class NullPortalDelegate {
@@ -165,7 +218,6 @@ declare module '@atom/teletype-client' {
         updateActivePositions(...args: any[]): void;
 
         updateTether(...args: any[]): void;
-
     }
 
     export class PeerConnection {
@@ -202,7 +254,6 @@ declare module '@atom/teletype-client' {
         send(...args: any[]): void;
 
         sendSignal(...args: any[]): void;
-
     }
 
     export class PeerPool {
@@ -247,7 +298,6 @@ declare module '@atom/teletype-client' {
         peerConnectionDidError(...args: any[]): void;
 
         send(...args: any[]): void;
-
     }
 
     export class Portal {
@@ -343,7 +393,7 @@ declare module '@atom/teletype-client' {
 
         sendSubscriptionResponse(...args: any[]): void;
 
-        setDelegate(...args: any[]): void;
+        setDelegate(delegate: PortalDelegate): Promise<void>;
 
         setFollowState(...args: any[]): void;
 
@@ -354,7 +404,6 @@ declare module '@atom/teletype-client' {
         unfollow(...args: any[]): void;
 
         updateActivePositions(...args: any[]): void;
-
     }
 
     export class PubSubSignalingProvider {
@@ -365,7 +414,6 @@ declare module '@atom/teletype-client' {
         disconnect(...args: any[]): void;
 
         subscribe(...args: any[]): void;
-
     }
 
     export class PusherPubSubGateway {
@@ -376,7 +424,6 @@ declare module '@atom/teletype-client' {
         disconnect(...args: any[]): void;
 
         subscribe(...args: any[]): void;
-
     }
 
     export class RestGateway {
@@ -393,7 +440,6 @@ declare module '@atom/teletype-client' {
         post(...args: any[]): void;
 
         setOauthToken(...args: any[]): void;
-
     }
 
     export class Router {
@@ -418,14 +464,12 @@ declare module '@atom/teletype-client' {
         request(...args: any[]): void;
 
         respond(...args: any[]): void;
-
     }
 
     export class SocketClusterPubSubGateway {
         constructor(...args: any[]);
 
         subscribe(...args: any[]): void;
-
     }
 
     export class StarOverlayNetwork {
@@ -478,7 +522,6 @@ declare module '@atom/teletype-client' {
         send(...args: any[]): void;
 
         unicast(...args: any[]): void;
-
     }
 
     export class TeletypeClient {
@@ -492,11 +535,11 @@ declare module '@atom/teletype-client' {
 
         getLocalUserIdentity(...args: any[]): void;
 
-        initialize(...args: any[]): void;
+        initialize(...args: any[]): Promise<void>;
 
         isSignedIn(...args: any[]): void;
 
-        joinPortal(...args: any[]): Portal;
+        joinPortal(...args: any[]): Promise<Portal>;
 
         onConnectionError(...args: any[]): void;
 
@@ -504,10 +547,9 @@ declare module '@atom/teletype-client' {
 
         peerPoolDidError(...args: any[]): void;
 
-        signIn(...args: any[]): void;
+        signIn(...args: any[]): Promise<void>;
 
         signOut(...args: any[]): void;
-
     }
 
     export const FollowState: {
@@ -543,71 +585,60 @@ declare module '@atom/teletype-client' {
             const stackTraceLimit: number;
 
             function captureStackTrace(p0: any, p1: any): any;
-
         }
 
         namespace HTTPRequestError {
             const stackTraceLimit: number;
 
             function captureStackTrace(p0: any, p1: any): any;
-
         }
 
         namespace InvalidAuthenticationTokenError {
             const stackTraceLimit: number;
 
             function captureStackTrace(p0: any, p1: any): any;
-
         }
 
         namespace NetworkConnectionError {
             const stackTraceLimit: number;
 
             function captureStackTrace(p0: any, p1: any): any;
-
         }
 
         namespace PeerConnectionError {
             const stackTraceLimit: number;
 
             function captureStackTrace(p0: any, p1: any): any;
-
         }
 
         namespace PortalCreationError {
             const stackTraceLimit: number;
 
             function captureStackTrace(p0: any, p1: any): any;
-
         }
 
         namespace PortalJoinError {
             const stackTraceLimit: number;
 
             function captureStackTrace(p0: any, p1: any): any;
-
         }
 
         namespace PortalNotFoundError {
             const stackTraceLimit: number;
 
             function captureStackTrace(p0: any, p1: any): any;
-
         }
 
         namespace PubSubConnectionError {
             const stackTraceLimit: number;
 
             function captureStackTrace(p0: any, p1: any): any;
-
         }
 
         namespace UnexpectedAuthenticationError {
             const stackTraceLimit: number;
 
             function captureStackTrace(p0: any, p1: any): any;
-
         }
-
     }
 }
