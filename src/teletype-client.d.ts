@@ -1,7 +1,8 @@
 declare module '@atom/teletype-client' {
 
     export class BufferProxy {
-		onDidChangeBuffer: any;
+        id: string;
+        uri: string;
         constructor(...args: any[]);
 
         applyGroupingInterval(...args: any[]): void;
@@ -14,15 +15,15 @@ declare module '@atom/teletype-client' {
 
         createCheckpoint(...args: any[]): void;
 
-        dispose(...args: any[]): void;
+        dispose(): void;
 
         getChangesSinceCheckpoint(...args: any[]): void;
 
         getHistory(...args: any[]): void;
 
-        getMarkers(...args: any[]): void;
+        getMarkers(): void;
 
-        getNextMarkerLayerId(...args: any[]): void;
+        getNextMarkerLayerId(): number;
 
         groupChangesSinceCheckpoint(...args: any[]): void;
 
@@ -32,7 +33,7 @@ declare module '@atom/teletype-client' {
 
         onDidUpdateMarkers(...args: any[]): void;
 
-        onDidUpdateText(...args: any[]): void;
+        onDidUpdateText(listener: any): any;
 
         receiveFetch(...args: any[]): void;
 
@@ -50,11 +51,11 @@ declare module '@atom/teletype-client' {
 
         revertToCheckpoint(...args: any[]): void;
 
-        serialize(...args: any[]): void;
+        serialize(): void;
 
-        setDelegate(...args: any[]): void;
+        setDelegate(delegate: any): void;
 
-        setTextInRange(...args: any[]): void;
+        setTextInRange(oldStart: any, oldEnd: any, newText: string): void;
 
         setURI(...args: any[]): void;
 
@@ -68,6 +69,7 @@ declare module '@atom/teletype-client' {
 
     export class EditorProxy {
         constructor(...args: any[]);
+        bufferProxy: BufferProxy;
 
         bufferProxyDidUpdateMarkers(...args: any[]): void;
 

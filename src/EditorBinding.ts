@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 import { EditorProxy, Portal } from '@atom/teletype-client';
 
 import { SelectionMap, Selection, Position, Range } from './teletype_types';
+import { fromSelectionToRange, fromVscodePosition, toVscodeRange } from './utils';
 
 interface SiteDecoration {
 	cursorDecoration: vscode.TextEditorDecorationType;
@@ -62,16 +63,15 @@ export default class EditorBinding {
 			if (selectionUpdate) {
 				selectionsForSite[selectionId] = selectionUpdate;
 				if (this.isCursor(selectionUpdate)) {
-					cursorRanges = cursorRanges.concat(this.convertTeletypeRange(selectionUpdate.range));
+					cursorRanges = cursorRanges.concat(toVscodeRange(selectionUpdate.range));
 				} else {
 					if (selectionUpdate.tailed) {
-						const cursorRange = this.getCursorRangeFromSelection(selectionUpdate);
-						cursorRanges = cursorRanges.concat(this.convertTeletypeRange(cursorRange));
+						const cursorRange = fromSelectionToRange(selectionUpdate);
+						cursorRanges = cursorRanges.concat(toVscodeRange(cursorRange));
 					}
-					selectionRanges = selectionRanges.concat(this.convertTeletypeRange(selectionUpdate.range));
+					selectionRanges = selectionRanges.concat(toVscodeRange(selectionUpdate.range));
 				}
-			}
-			else {
+			} else {
 				delete selectionsForSite[selectionId];
 			}
 		}
@@ -95,8 +95,9 @@ export default class EditorBinding {
 		return siteDecoration;
 	}
 
-	isScrollNeededToViewPosition(position: any) {
-
+	isScrollNeededToViewPosition(position: any): boolean {
+		// TODO
+		return false;
 	}
 
 	updateTether(state: any, position: any) {
@@ -119,20 +120,20 @@ export default class EditorBinding {
 		selections.forEach((selection, index) => {
 			this.localSelectionMap[index] = {
 				range: {
-					start: this.convertVSCodePosition(selection.start),
-					end: this.convertVSCodePosition(selection.end)
+					start: fromVscodePosition(selection.start),
+					end: fromVscodePosition(selection.end)
 				},
 				reversed: selection.isReversed,
 			};
 		});
 
-		selections.forEach((selection, index) => {
+		selections.forEach((selection, _) => {
 			if (currentSelectionKeys.length > newSelectionsLength) {
 				for (let index = newSelectionsLength; index < currentSelectionKeys.length; index += 1) {
 					this.localSelectionMap[index] = {
 						range: {
-							start: this.convertVSCodePosition(selection.start),
-							end: this.convertVSCodePosition(selection.end)
+							start: fromVscodePosition(selection.start),
+							end: fromVscodePosition(selection.end)
 						},
 						reversed: false,
 					};
@@ -142,30 +143,9 @@ export default class EditorBinding {
 		);
 	}
 
-	private convertVSCodePosition(position: vscode.Position): Position {
-		return {
-			column: position.character,
-			row: position.line
-		};
-	}
-
-	private convertTeletypePosition(position: Position): vscode.Position {
-		return new vscode.Position(
-			position.row,
-			position.column
-		);
-	}
-
-	private convertTeletypeRange(range: Range): vscode.Range {
-		return new vscode.Range(
-			this.convertTeletypePosition(range.start),
-			this.convertTeletypePosition(range.end)
-		);
-	}
-
 	private createDecorationFromSiteId(siteId: number): SiteDecoration {
 		const selectionDecorationRenderOption: vscode.DecorationRenderOptions = {
-			backgroundColor: `rgba(0,0,255,0.6)`
+			backgroundColor: `rgba(61, 90, 254, 0.6)`
 		};
 
 		const { login: siteLogin } = this.portal.getSiteIdentity(siteId);
@@ -182,12 +162,12 @@ export default class EditorBinding {
 		};
 
 		const curosrDecorationRenderOption: vscode.DecorationRenderOptions = {
-			border: 'solid rgba(0,0,255,0.6)',
+			border: 'solid rgba(122, 34, 210, 0.6)',
 			borderWidth: '5px 5px 5px 5px',
 			after: {
 				contentText: siteLogin,
-				backgroundColor: 'rgba(0,0,255,0.6)',
-				color: 'rgba(192,192,192,30)',
+				backgroundColor: 'rgba(122, 34, 210, 0.6)',
+				color: 'rgba(192, 192, 192, 30)',
 				textDecoration: `none; ${this.stringifyCssProperties(nameTagStyleRules)}`
 			}
 		};
@@ -203,24 +183,7 @@ export default class EditorBinding {
 
 	private stringifyCssProperties(rules: any) {
 		return Object.keys(rules)
-			.map((rule) => {
-				return `${rule}: ${rules[rule]};`;
-			}).join(' ');
-	}
-
-	private getCursorRangeFromSelection(selection: Selection): Range {
-		const { range: { end, start } } = selection;
-		if (selection.reversed) {
-			return {
-				start: start,
-				end: start
-			};
-		} else {
-			return {
-				start: end,
-				end: end
-			};
-		}
+			.map(rule => `${rule}: ${rules[rule]};`).join(' ');
 	}
 
 	private isCursor(selection: Selection): boolean {

@@ -7,11 +7,12 @@ import EditorBinding from './EditorBinding';
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
+// import * as mkdir from 'mkdirp-promise';
 
-export default class PortalBinding {
+export default class GuestPortalBinding {
 	public client: TeletypeClient;
 	private readonly portalId: string;
-	private readonly editor: vscode.TextEditor;
+	private readonly editor?: vscode.TextEditor;
 	private portal!: Portal;
 	private tetherState: any;
 	private tetherEditorProxy: any;
@@ -33,8 +34,7 @@ export default class PortalBinding {
     private tetherPosition = null;
     private activePositionsBySiteId = {};
 
-
-	constructor({ client, portalId, editor }: { client: any; portalId: any; editor: any; }) {
+	constructor({ client, portalId, editor }: { client: TeletypeClient; portalId: string; editor?: vscode.TextEditor; }) {
 		this.client = client;
 		this.portalId = portalId;
 		this.editor = editor;
@@ -45,49 +45,53 @@ export default class PortalBinding {
 		this.editorBindingsByEditor = new Map();
 		this.editorProxiesByEditor = new WeakMap();
 		this.tetherEditorProxyChangeCounter = 0;
-		
 	}
 
 	async initialize() {
 		try {
 			this.portal = await this.client.joinPortal(this.portalId);
-			this.portal.setDelegate(this);
+			if (!this.portal) {
+				return false;
+			}
+			await this.portal.setDelegate(this);
+
 			vscode.window.showInformationMessage('Joined Portal with ID' + ' ' + this.portalId + ' ');			
 			this.registerWorkspaceEvents();
+			return true;
 		} catch (error) {
-			vscode.window.showErrorMessage('Unable to join the Portal with ID' + ' ' + this.portalId + ' ');
+			console.error("%0", error);
+			let message: string;
+			if (error instanceof Errors.PortalNotFoundError) {
+				message = "Portal not found: the portal you were trying to join does not exist";
+			} else {
+				message = `Failed to join portal: Attemping to join portal failed with error: ${error.message}`;
+			}
+			vscode.window.showErrorMessage(message);
+			return false;
 		}
 	}
 
-	private registerWorkspaceEvents () {
+	private registerWorkspaceEvents() {
 		vscode.workspace.onDidChangeTextDocument(this.onDidChangeTextDocument.bind(this));
 		vscode.workspace.onWillSaveTextDocument(this.saveDocument.bind(this));
 		vscode.window.onDidChangeTextEditorSelection(this.triggerSelectionChanges.bind(this));
 	}
 
-	private onDidChangeTextDocument (event : vscode.TextDocumentChangeEvent) {
-		if(this.bufferBindingsByBuffer){
-		const bufferBinding = this.bufferBindingsByBuffer.get(event.document);
-		if (bufferBinding) {
-			bufferBinding.onDidChangeBuffer(event.contentChanges);
-		}
-	}
+	private onDidChangeTextDocument(event : vscode.TextDocumentChangeEvent) {
+		this.bufferBindingsByBuffer
+			?.get(event.document)
+			?.onDidChangeBuffer(event.contentChanges);
 	}
 
-	private saveDocument (event : vscode.TextDocumentWillSaveEvent) {
-		if(this.bufferBindingsByBuffer){
+	private saveDocument(event: vscode.TextDocumentWillSaveEvent) {
 		const bufferBinding = this.bufferBindingsByBuffer.get(event.document);
 		if (bufferBinding) {
 			event.waitUntil(bufferBinding.requestSavePromise());
 		}
 	}
-}
 
 	private triggerSelectionChanges(event : vscode.TextEditorSelectionChangeEvent) {
-		const editorBinding = this.editorBindingsByEditor.get(event.textEditor);
-		if (editorBinding) {
-			editorBinding.updateSelections(event.selections);
-		}
+		this.editorBindingsByEditor.get(event.textEditor)?.updateSelections(event.selections);
 	}
 
 	dispose() {
@@ -99,6 +103,7 @@ export default class PortalBinding {
 	}
 
 	hostDidClosePortal() {
+		vscode.window.showInformationMessage("Portal closed by host");
 		this.hostClosedPortal = true;
 	}
 
@@ -107,6 +112,7 @@ export default class PortalBinding {
 	}
 
 	hostDidLoseConnection() {
+		vscode.window.showInformationMessage("Portal host lose connection");
 		this.hostLostConnection = true;
 	}
 
@@ -116,18 +122,17 @@ export default class PortalBinding {
 
 	addEditorProxy(editorProxy: any) {
 		if(editorProxy && this.editorProxies){
-		if (typeof this.onAddEditorProxy === "function") {
-			this.onAddEditorProxy(editorProxy);
+			if (typeof this.onAddEditorProxy === "function") {
+				this.onAddEditorProxy(editorProxy);
+			}
+			console.log("addEditorProxy: " + editorProxy.bufferProxy.uri);
+			if (!this.editorProxies.has(editorProxy)) {
+				// console.log('Cannot add the same editor proxy multiple times remove/add again');
+				// this.editorProxies.delete(editorProxy);
+				this.editorProxies.add(editorProxy);
+			}
 		}
-		console.log("addEditorProxy: " + editorProxy.bufferProxy.uri);
-		if (!this.editorProxies.has(editorProxy)) {
-			console.log('Cannot add the same editor proxy multiple times remove/add again');
-			this.editorProxies.delete(editorProxy);
-		}
-
-		this.editorProxies.add(editorProxy);
 	}
-}
 
 	removeEditorProxy(editorProxy: any) {
 		if (typeof this.onRemoveEditorProxy === "function") {
@@ -157,8 +162,8 @@ export default class PortalBinding {
 		return Array.from(this.editorProxies);
 	}
 
-	async updateTether(state: any, editorProxy: any, position: any) {
-		
+	// called after portal.setDelegate(this)
+	async updateTether(state: any, editorProxy: EditorProxy, position: any) {
 		if (editorProxy) {
 			this.lastEditorProxyChangePromise = this.lastEditorProxyChangePromise.then(() =>
 				this.onUpdateTether(state, editorProxy, position)
@@ -172,15 +177,17 @@ export default class PortalBinding {
 			this.tetherEditorProxyChangeCounter++;
 		}
 		this.tetherPosition = position;
+
+		return this.lastEditorProxyChangePromise;
 	}
 	
 	
 	
-	private async onUpdateTether (state:any, editorProxy:any, position:any) {
+	private async onUpdateTether(state:any, editorProxy:any, position:any) {
 		if (state === FollowState.RETRACTED) {
-			const editor = await this.findOrCreateEditorByEditorProxy(editorProxy);
+			await this.findOrCreateEditorByEditorProxy(editorProxy);
 		} else {
-			this.editorBindingsByEditorProxy.forEach((editor_binding:any) => editor_binding.updateTether(state, undefined));
+			this.editorBindingsByEditorProxy.forEach((editor_binding:any) => editor_binding.updateTether(state, position));
 		}
 
 		const editorBinding = this.editorBindingsByEditorProxy.get(editorProxy);
@@ -196,23 +203,22 @@ export default class PortalBinding {
 			editor = editorBinding.editor;
 		} else {
 			const {bufferProxy} = editorProxy;
-			const buffer = await this.findOrCreateBufferForBufferProxy(bufferProxy);
-			const bufferBinding = this.bufferBindingsByBufferProxy.get(bufferProxy);
+			const [buffer, bufferBinding] = await this.findOrCreateBufferForBufferProxy(bufferProxy);
 			await vscode.workspace.openTextDocument(buffer.uri);
 
 			console.log('find buffer, now show it');
 			editor = await vscode.window.showTextDocument(buffer);
+
 			editorBinding = new EditorBinding({
 				editor,
 				portal: this.portal,
 				isHost: false
 			});
-			await vscode.commands.executeCommand('workbench.action.keepEditor');
-			if (bufferBinding){
-				bufferBinding.setEditor(editor);
-			}
-			
 
+			await vscode.commands.executeCommand('workbench.action.keepEditor');
+
+			bufferBinding.setEditor(editor);
+			
 			editorBinding.setEditorProxy(editorProxy);
 			editorProxy.setDelegate(editorBinding);
 
@@ -228,15 +234,22 @@ export default class PortalBinding {
 		return editor;
 	}
 
-	private async findOrCreateBufferForBufferProxy (bufferProxy:any) : Promise<vscode.TextDocument> {
+	private async findOrCreateBufferForBufferProxy (bufferProxy:any) : Promise<[vscode.TextDocument, BufferBinding]> {
 		let buffer : vscode.TextDocument;
 		let bufferBinding = this.bufferBindingsByBufferProxy.get(bufferProxy);
 		if (bufferBinding) {
 			buffer = bufferBinding.buffer;
 		} else {
-			const bufferURI = vscode.Uri.parse(`file://${path.join(os.tmpdir(), `/${this.portalId}/`, bufferProxy.uri)}`);
+			const uri = path.join(os.tmpdir(), `\\${this.portalId}\\`, bufferProxy.uri);
+
+			console.log(`try to write file at ${uri}`);
+
+			const bufferURI = vscode.Uri.file(uri);
+
 			await require('mkdirp-promise')(path.dirname(bufferURI.fsPath));
-			fs.writeFileSync(bufferURI.fsPath, '');
+			await fs.promises.writeFile(bufferURI.fsPath, '');
+
+			console.log("wrote file, now open");
 
 			buffer = await vscode.workspace.openTextDocument(bufferURI);
 
@@ -252,7 +265,7 @@ export default class PortalBinding {
 			this.bufferBindingsByBuffer.set(buffer, bufferBinding);
 			this.bufferBindingsByBufferProxy.set(bufferProxy, bufferBinding);
 		}
-		return buffer;
+		return [buffer, bufferBinding];
 	}
 
 

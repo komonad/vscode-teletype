@@ -4,6 +4,7 @@ import * as vscode from 'vscode';
 import { BufferProxy } from '@atom/teletype-client';
 
 import { Position, TextUdpate } from './teletype_types';
+import { getWholeRange } from './utils';
 
 export default class BufferBinding {
 	public readonly buffer: vscode.TextDocument;
@@ -16,16 +17,26 @@ export default class BufferBinding {
 	private onUpdateText: any;
 	private onInsert: any;
 	private onDelete: any;
+	private subscriptions: vscode.Disposable;
+	private disableHistory: boolean = false;
 
-
-	constructor({ buffer, isHost, didDispose }: { buffer: any; isHost: any; didDispose: any; }) {
-
+	constructor({ buffer, isHost, didDispose }: { buffer: vscode.TextDocument; isHost: boolean; didDispose: any; }) {
 		this.buffer = buffer;
 		this.isHost = isHost;
 		this.didDispose = didDispose;
+		// TODO
+		this.subscriptions = vscode.Disposable.from();
+		if (isHost) {
+			// TODO
+		}
 	}
 
 	dispose() {
+		if (this.disposed) {
+			return;
+		}
+		this.subscriptions.dispose();
+		// TODO
 		this.disposed = true;
 	}
 	isDisposed() {
@@ -42,6 +53,7 @@ export default class BufferBinding {
 		this.bufferProxy = bufferProxy;
 	}
 
+	// called once at the initialization
 	setText(text: string) {
 		fs.writeFileSync(this.buffer.uri.fsPath, text);
 	}
@@ -50,21 +62,26 @@ export default class BufferBinding {
 		this.editor = editor;
 	}
 
-	updateText(textUpdates: any) {
+	async updateText(textUpdates: any[]) {
+		if (textUpdates.length === 0) {
+			return true;
+		}
+		this.disableHistory = true;
 		return this.editor.edit(builder => {
 			for (let i = textUpdates.length - 1; i >= 0; i--) {
 				const textUpdate = textUpdates[i];
 				builder.replace(this.createRange(textUpdate.oldStart, textUpdate.oldEnd), textUpdate.newText);
 			}
-		}, { undoStopBefore: false, undoStopAfter: true });
+		}, { undoStopBefore: false, undoStopAfter: true }).then(result => {
+			this.disableHistory = false;
+			return result;
+		});
 	}
 
 	traverse(start: any, distance: any) {
 		if (distance.row === 0) {
 			return { row: start.row, column: start.column + distance.column };
-		}
-
-		else {
+		} else {
 			return { row: start.row + distance.row, column: distance.column };
 		}
 	}
@@ -76,6 +93,7 @@ export default class BufferBinding {
 		}
 		return [position, position, text];
 	}
+
 	delete(startPosition: any, extent: any) {
 		console.log("buffer delete start pos:" + startPosition + " extent: " + extent);
 		if (typeof this.onDelete === "function") {
@@ -92,16 +110,16 @@ export default class BufferBinding {
 		);
 	}
 
+	// callback for vscode text editor
 	onDidChangeBuffer(changes: vscode.TextDocumentContentChangeEvent[]) {
-		this.bufferProxy.onDidChangeBuffer(changes.map(change => {
+		if (this.disableHistory) return;
+		changes.forEach(change => {
 			const { start, end } = change.range;
-
-			return {
-				oldStart: { row: start.line, column: start.character },
-				oldEnd: { row: end.line, column: end.character },
-				newText: change.text
-			};
-		}));
+			const oldStart = { row: start.line, column: start.character };
+			const oldEnd = { row: end.line, column: end.character };
+			const newText = change.text;
+			this.bufferProxy.setTextInRange(oldStart, oldEnd, newText);
+		});
 	}
 
 	requestSavePromise() {
@@ -110,7 +128,8 @@ export default class BufferBinding {
 		});
 	}
 
-	save() {
-		this.buffer.save();
+	async save() {
+		if (this.buffer.isDirty) return this.buffer.save();
+		else return true;
 	}
 }

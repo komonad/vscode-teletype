@@ -7,9 +7,9 @@ export interface Position {
 export interface TextUdpate {
 	oldStart: Position;
 	oldEnd: Position;
-	newStart: Position;
-	newEnd: Position;
-	oldText: string;
+	newStart?: Position;
+	newEnd?: Position;
+	oldText?: string;
 	newText: string;
 }
 
