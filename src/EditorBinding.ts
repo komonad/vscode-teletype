@@ -16,6 +16,7 @@ export default class EditorBinding implements EditorDelegate {
     private editorProxy!: EditorProxy;
     private localSelectionMap: SelectionMap;
     private disposed!: boolean;
+    private onDispose: () => void = () => {};
     private selectionsBySiteId: any;
     private decorationBySiteId: Map<number, SiteDecoration>;
     private localMarkerSelectionMap: Map<number, SelectionMap>;
@@ -31,6 +32,7 @@ export default class EditorBinding implements EditorDelegate {
     }
 
     dispose(): void {
+        this.onDispose();
         this.disposed = true;
     }
 
@@ -38,8 +40,8 @@ export default class EditorBinding implements EditorDelegate {
         return this.disposed;
     }
 
-    onDidDispose(onDidDipose: (onDidDipose: any) => void): void {
-        this.onDidDispose = onDidDipose;
+    onDidDispose(onDispose: () => void): void {
+        this.onDispose = onDispose;
     }
 
     setEditorProxy(editorProxy: EditorProxy): void {
@@ -105,7 +107,14 @@ export default class EditorBinding implements EditorDelegate {
         return false;
     }
 
-    updateTether(state: number, position: Position): void {}
+    async updateTether(state: number, position: Position): Promise<void> {
+        const editor = await vscode.window.showTextDocument(this.editor.document);
+        if (editor === this.editor) {
+            console.log("editor is the same");
+        } else {
+            console.error("what?");
+        }
+    }
 
     clearSelectionsForSiteId(siteId: number): void {
         const siteDecoration = this.findSiteDecoration(siteId);

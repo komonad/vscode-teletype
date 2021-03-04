@@ -6,7 +6,6 @@ This plugin can now connect to a [teletype](https://teletype.atom.io/) based co-
 
 TODOs:
 
-- [] Fix file save
 - [] Add local authentication key storage
 - [] Add local portal id storage
 - [] **Add Share Portal functionality**

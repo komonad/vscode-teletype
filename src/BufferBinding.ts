@@ -9,13 +9,14 @@ export default class BufferBinding implements BufferDelegate {
     private readonly isHost: boolean;
     private bufferProxy!: BufferProxy;
     private onGetText: any;
-    public didDispose: Function;
+    public didDispose: () => any;
     private disposed!: boolean;
     private onUpdateText: any;
     private onInsert: any;
     private onDelete: any;
+    private isInitialize: boolean = true;
     private subscriptions: vscode.Disposable;
-    private disableHistory = false;
+    private disableHistory: boolean = false;
 
     constructor({
         buffer,
@@ -24,11 +25,11 @@ export default class BufferBinding implements BufferDelegate {
     }: {
         buffer: vscode.TextDocument;
         isHost: boolean;
-        didDispose: any;
+        didDispose?: () => any;
     }) {
         this.buffer = buffer;
         this.isHost = isHost;
-        this.didDispose = didDispose;
+        this.didDispose = didDispose || (() => {});
         // TODO
         this.subscriptions = vscode.Disposable.from();
         if (isHost) {
@@ -37,6 +38,7 @@ export default class BufferBinding implements BufferDelegate {
     }
 
     didChangeURI(text: string): void {
+        console.log(`didChangeURI(${text}) called`);
         // TODO
     }
 
@@ -47,10 +49,13 @@ export default class BufferBinding implements BufferDelegate {
         this.subscriptions.dispose();
         // TODO
         this.disposed = true;
+        this.didDispose();
     }
+
     isDisposed(): boolean {
         return this.disposed;
     }
+    
     getText(): any {
         if (typeof this.onGetText === "function") {
             return this.onGetText();
@@ -64,7 +69,9 @@ export default class BufferBinding implements BufferDelegate {
 
     // called once at the initialization
     setText(text: string): void {
+        this.disableHistory = true;
         fs.writeFileSync(this.buffer.uri.fsPath, text);
+        this.disableHistory = false;
     }
 
     setEditor(editor: vscode.TextEditor): void {
@@ -120,7 +127,7 @@ export default class BufferBinding implements BufferDelegate {
         return [startPosition, endPosition, ""];
     }
 
-    createRange(start: Position, end: Position): vscode.Range {
+    private createRange(start: Position, end: Position): vscode.Range {
         return new vscode.Range(
             new vscode.Position(start.row, start.column),
             new vscode.Position(end.row, end.column)
@@ -130,6 +137,10 @@ export default class BufferBinding implements BufferDelegate {
     // callback for vscode text editor
     onDidChangeBuffer(changes: vscode.TextDocumentContentChangeEvent[]): void {
         if (this.disableHistory) return;
+        if (this.isInitialize) {
+            this.isInitialize = false;
+            return;
+        }
         changes.forEach(change => {
             const { start, end } = change.range;
             const oldStart = { row: start.line, column: start.character };
@@ -146,7 +157,6 @@ export default class BufferBinding implements BufferDelegate {
     }
 
     async save(): Promise<boolean> {
-        if (this.buffer.isDirty) return this.buffer.save();
-        else return true;
+        return this.buffer.save();
     }
 }

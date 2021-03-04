@@ -9,6 +9,7 @@ import {
     BufferProxy,
     Position,
     PortalDelegate,
+    EditorDelegate,
 } from "@atom/teletype-client";
 import BufferBinding from "./BufferBinding";
 import EditorBinding from "./EditorBinding";
@@ -16,6 +17,7 @@ import EditorBinding from "./EditorBinding";
 import * as os from "os";
 import * as path from "path";
 import * as fs from "fs";
+import { CompositeDisposable } from "./CompositeDisposable";
 // import * as mkdir from 'mkdirp-promise';
 
 export default class GuestPortalBinding implements PortalDelegate {
@@ -28,6 +30,7 @@ export default class GuestPortalBinding implements PortalDelegate {
     private disposed!: boolean;
     private lastEditorProxyChangePromise: Promise<void>;
     private onAddEditorProxy: any;
+    private onDisposed: () => void;
     private onRemoveEditorProxy: any;
     private joinEvents: any;
     private editorBindingsByEditorProxy: Map<EditorProxy, EditorBinding>;
@@ -42,15 +45,18 @@ export default class GuestPortalBinding implements PortalDelegate {
     private tetherEditorProxyChangeCounter: any;
     private tetherPosition?: Position;
     private activePositionsBySiteId = {};
+    private subscriptions: CompositeDisposable = new CompositeDisposable();
 
     constructor({
         client,
         portalId,
         editor,
+        onDisposed,
     }: {
         client: TeletypeClient;
         portalId: string;
         editor?: vscode.TextEditor;
+        onDisposed?: () => void
     }) {
         this.client = client;
         this.portalId = portalId;
@@ -61,6 +67,7 @@ export default class GuestPortalBinding implements PortalDelegate {
         this.bufferBindingsByBuffer = new Map();
         this.editorBindingsByEditor = new Map();
         this.editorProxiesByEditor = new WeakMap();
+        this.onDisposed = onDisposed || (() => {});
         this.tetherEditorProxyChangeCounter = 0;
     }
 
@@ -70,12 +77,15 @@ export default class GuestPortalBinding implements PortalDelegate {
             if (!this.portal) {
                 return false;
             }
+
             await this.portal.setDelegate(this);
 
             vscode.window.showInformationMessage(
                 "Joined Portal with ID" + " " + this.portalId + " "
             );
+            
             this.registerWorkspaceEvents();
+
             return true;
         } catch (error) {
             console.error("%0", error);
@@ -91,9 +101,11 @@ export default class GuestPortalBinding implements PortalDelegate {
     }
 
     private registerWorkspaceEvents() {
-        vscode.workspace.onDidChangeTextDocument(this.onDidChangeTextDocument.bind(this));
-        vscode.workspace.onWillSaveTextDocument(this.saveDocument.bind(this));
-        vscode.window.onDidChangeTextEditorSelection(this.triggerSelectionChanges.bind(this));
+        this.subscriptions.add(
+            vscode.workspace.onDidChangeTextDocument(this.onDidChangeTextDocument.bind(this)),
+            vscode.workspace.onWillSaveTextDocument(this.saveDocument.bind(this)),
+            vscode.window.onDidChangeTextEditorSelection(this.triggerSelectionChanges.bind(this)),
+        );
     }
 
     private onDidChangeTextDocument(event: vscode.TextDocumentChangeEvent) {
@@ -112,7 +124,14 @@ export default class GuestPortalBinding implements PortalDelegate {
     }
 
     dispose(): void {
+        this.subscriptions.dispose();
+        this.onDisposed();
         this.disposed = true;
+    }
+
+    leave(): void {
+        console.log("leave portal with id " + this.portalId);
+        this.portal?.dispose();
     }
 
     isDisposed(): boolean {
@@ -205,8 +224,8 @@ export default class GuestPortalBinding implements PortalDelegate {
         if (state === FollowState.RETRACTED) {
             await this.findOrCreateEditorByEditorProxy(editorProxy);
         } else {
-            this.editorBindingsByEditorProxy.forEach((editor_binding: any) =>
-                editor_binding.updateTether(state, position)
+            this.editorBindingsByEditorProxy.forEach((editorBinding: EditorBinding) =>
+                editorBinding.updateTether(state, position)
             );
         }
 
@@ -216,7 +235,9 @@ export default class GuestPortalBinding implements PortalDelegate {
         }
     }
 
-    private async findOrCreateEditorByEditorProxy(editorProxy: EditorProxy): Promise<vscode.TextEditor> {
+    private async findOrCreateEditorByEditorProxy(
+        editorProxy: EditorProxy
+    ): Promise<vscode.TextEditor> {
         let editor: vscode.TextEditor;
         let editorBinding = this.editorBindingsByEditorProxy.get(editorProxy);
         if (editorBinding) {
@@ -226,7 +247,6 @@ export default class GuestPortalBinding implements PortalDelegate {
             const [buffer, bufferBinding] = await this.findOrCreateBufferForBufferProxy(
                 bufferProxy
             );
-            await vscode.workspace.openTextDocument(buffer.uri);
 
             console.log("find buffer, now show it");
             editor = await vscode.window.showTextDocument(buffer);
@@ -248,7 +268,12 @@ export default class GuestPortalBinding implements PortalDelegate {
             this.editorProxiesByEditor.set(editor, editorProxy);
             this.editorBindingsByEditor.set(editor, editorBinding);
 
-            editorBinding.onDidDispose(() => {
+            editorBinding.onDidDispose(async () => {
+                await vscode.window.showTextDocument(editor.document.uri, {preview: true, preserveFocus: false})
+                    .then(() => {
+                        console.log("now close editor of " + editor.document.uri);
+                        return vscode.commands.executeCommand("workbench.action.closeActiveEditor");
+                    });
                 this.editorProxiesByEditor.delete(editor);
                 this.editorBindingsByEditorProxy.delete(editorProxy);
             });
@@ -257,7 +282,7 @@ export default class GuestPortalBinding implements PortalDelegate {
     }
 
     private async findOrCreateBufferForBufferProxy(
-        bufferProxy: any
+        bufferProxy: BufferProxy
     ): Promise<[vscode.TextDocument, BufferBinding]> {
         let buffer: vscode.TextDocument;
         let bufferBinding = this.bufferBindingsByBufferProxy.get(bufferProxy);
@@ -292,7 +317,7 @@ export default class GuestPortalBinding implements PortalDelegate {
         return [buffer, bufferBinding];
     }
 
-    getTetherState(): number | undefined  {
+    getTetherState(): number | undefined {
         return this.tetherState;
     }
 
@@ -314,6 +339,6 @@ export default class GuestPortalBinding implements PortalDelegate {
         this.leaveEvents.push(siteId);
     }
 
-    // TODO
+    // no need to implement
     didChangeEditorProxies(): void {}
 }

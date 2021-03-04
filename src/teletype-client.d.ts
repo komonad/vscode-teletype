@@ -335,7 +335,7 @@ declare module "@atom/teletype-client" {
 
         didChangeTetherState(...args: any[]): void;
 
-        dispose(...args: any[]): void;
+        dispose(): void;
 
         extendTether(...args: any[]): void;
 
@@ -533,13 +533,13 @@ declare module "@atom/teletype-client" {
 
         getClientId(...args: any[]): void;
 
-        getLocalUserIdentity(...args: any[]): void;
+        getLocalUserIdentity(): any;
 
         initialize(...args: any[]): Promise<void>;
 
-        isSignedIn(...args: any[]): void;
+        isSignedIn(): boolean;
 
-        joinPortal(...args: any[]): Promise<Portal>;
+        joinPortal(id: string): Promise<Portal>;
 
         onConnectionError(...args: any[]): void;
 
@@ -547,9 +547,9 @@ declare module "@atom/teletype-client" {
 
         peerPoolDidError(...args: any[]): void;
 
-        signIn(...args: any[]): Promise<void>;
+        signIn(oauthToken: string): Promise<boolean>;
 
-        signOut(...args: any[]): void;
+        signOut(): void;
     }
 
     export const FollowState: {

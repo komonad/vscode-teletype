@@ -16,7 +16,9 @@
 		"Other"
 	],
 	"activationEvents": [
-		"onCommand:extension.join-portal"
+		"onCommand:extension.join-portal",
+		"onCommand:extension.share-portal",
+		"onCommand:extension.teletype-sign-in"
 	],
 	"main": "./out/extension.js",
 	"contributes": {
@@ -24,6 +26,22 @@
 			{
 				"command": "extension.join-portal",
 				"title": "Join Portal"
+			},
+			{
+				"command": "extension.share-portal",
+				"title": "Share Portal"
+			},
+			{
+				"command": "extension.leave-portal",
+				"title": "Leave Portal"
+			},
+			{
+				"command": "extension.teletype-sign-in",
+				"title": "Sign in teletype"
+			},
+			{
+				"command": "extension.teletype-sign-out",
+				"title": "Sign out teletype"
 			}
 		]
 	},
