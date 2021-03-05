@@ -33,10 +33,10 @@ export default class GuestPortalBinding implements PortalDelegate {
     private onDisposed: () => void;
     private onRemoveEditorProxy: any;
     private joinEvents: any;
-    private editorBindingsByEditorProxy: Map<EditorProxy, EditorBinding>;
-    private bufferBindingsByBufferProxy: Map<BufferProxy, BufferBinding>;
-    private bufferBindingsByBuffer: Map<vscode.TextDocument, BufferBinding>;
-    private editorBindingsByEditor: Map<vscode.TextEditor, EditorBinding>;
+    private editorBindingsByEditorProxy: Map<EditorProxy, EditorBinding>; 
+    private bufferBindingsByBufferProxy: Map<BufferProxy, BufferBinding>; 
+    private bufferBindingsByUri: Map<vscode.Uri, BufferBinding>; // from edit event
+    private editorBindingsByUri: Map<vscode.Uri, EditorBinding>; // from selection event
     private editorProxiesByEditor: WeakMap<vscode.TextEditor, EditorProxy>;
     private hostClosedPortal = false;
     private hostLostConnection = false;
@@ -64,8 +64,8 @@ export default class GuestPortalBinding implements PortalDelegate {
         this.lastEditorProxyChangePromise = Promise.resolve();
         this.editorBindingsByEditorProxy = new Map();
         this.bufferBindingsByBufferProxy = new Map();
-        this.bufferBindingsByBuffer = new Map();
-        this.editorBindingsByEditor = new Map();
+        this.bufferBindingsByUri = new Map();
+        this.editorBindingsByUri = new Map();
         this.editorProxiesByEditor = new WeakMap();
         this.onDisposed = onDisposed || (() => {});
         this.tetherEditorProxyChangeCounter = 0;
@@ -77,14 +77,12 @@ export default class GuestPortalBinding implements PortalDelegate {
             if (!this.portal) {
                 return false;
             }
-
-            await this.portal.setDelegate(this);
-
             vscode.window.showInformationMessage(
                 "Joined Portal with ID" + " " + this.portalId + " "
             );
             
             this.registerWorkspaceEvents();
+            await this.portal.setDelegate(this);
 
             return true;
         } catch (error) {
@@ -104,23 +102,28 @@ export default class GuestPortalBinding implements PortalDelegate {
         this.subscriptions.add(
             vscode.workspace.onDidChangeTextDocument(this.onDidChangeTextDocument.bind(this)),
             vscode.workspace.onWillSaveTextDocument(this.saveDocument.bind(this)),
+            vscode.window.onDidChangeVisibleTextEditors(this.onDidChangeVisibleTextEditors.bind(this)),
             vscode.window.onDidChangeTextEditorSelection(this.triggerSelectionChanges.bind(this)),
         );
     }
 
+    private onDidChangeVisibleTextEditors(editors: vscode.TextEditor[]) {
+        // TODO?
+    }
+
     private onDidChangeTextDocument(event: vscode.TextDocumentChangeEvent) {
-        this.bufferBindingsByBuffer?.get(event.document)?.onDidChangeBuffer(event.contentChanges);
+        this.bufferBindingsByUri?.get(event.document.uri)?.onDidChangeBuffer(event.contentChanges);
     }
 
     private saveDocument(event: vscode.TextDocumentWillSaveEvent) {
-        const bufferBinding = this.bufferBindingsByBuffer.get(event.document);
+        const bufferBinding = this.bufferBindingsByUri.get(event.document.uri);
         if (bufferBinding) {
             event.waitUntil(bufferBinding.requestSavePromise());
         }
     }
 
     private triggerSelectionChanges(event: vscode.TextEditorSelectionChangeEvent) {
-        this.editorBindingsByEditor.get(event.textEditor)?.updateSelections(event.selections);
+        this.editorBindingsByUri.get(event.textEditor.document.uri)?.updateSelections(event.selections);
     }
 
     dispose(): void {
@@ -207,26 +210,28 @@ export default class GuestPortalBinding implements PortalDelegate {
             this.lastEditorProxyChangePromise = this.lastEditorProxyChangePromise.then(() =>
                 this.onUpdateTether(state, editorProxy, position)
             );
-        }
-        console.log("updateTether: " + editorProxy.bufferProxy.uri);
-        this.addEditorProxy(editorProxy);
-        this.tetherState = state;
-        if (editorProxy !== this.tetherEditorProxy) {
-            this.tetherEditorProxy = editorProxy;
-            this.tetherEditorProxyChangeCounter++;
-        }
-        this.tetherPosition = position;
+            console.log("updateTether: " + editorProxy.bufferProxy.uri);
+            this.addEditorProxy(editorProxy);
+            this.tetherState = state;
+            if (editorProxy !== this.tetherEditorProxy) {
+                this.tetherEditorProxy = editorProxy;
+                this.tetherEditorProxyChangeCounter++;
+            }
+            this.tetherPosition = position;
 
-        return this.lastEditorProxyChangePromise;
+            return this.lastEditorProxyChangePromise;
+        }
     }
 
     private async onUpdateTether(state: number, editorProxy: EditorProxy, position: Position) {
         if (state === FollowState.RETRACTED) {
             await this.findOrCreateEditorByEditorProxy(editorProxy);
         } else {
-            this.editorBindingsByEditorProxy.forEach((editorBinding: EditorBinding) =>
-                editorBinding.updateTether(state, position)
-            );
+            // TODO
+            // this.editorBindingsByEditorProxy.forEach((editorBinding: EditorBinding) =>
+            //     editorBinding.updateTether(state, position)
+            // );
+            this.editorBindingsByEditorProxy.get(editorProxy)?.updateTether(state, position);
         }
 
         const editorBinding = this.editorBindingsByEditorProxy.get(editorProxy);
@@ -259,22 +264,23 @@ export default class GuestPortalBinding implements PortalDelegate {
 
             await vscode.commands.executeCommand("workbench.action.keepEditor");
 
-            bufferBinding.setEditor(editor);
+            bufferBinding.setEditorBinding(editorBinding);
 
             editorBinding.setEditorProxy(editorProxy);
             editorProxy.setDelegate(editorBinding);
 
             this.editorBindingsByEditorProxy.set(editorProxy, editorBinding);
-            this.editorProxiesByEditor.set(editor, editorProxy);
-            this.editorBindingsByEditor.set(editor, editorBinding);
+            // this.editorProxiesByEditor.set(editor, editorProxy);
+            this.editorBindingsByUri.set(editor.document.uri, editorBinding);
 
-            editorBinding.onDidDispose(async () => {
-                await vscode.window.showTextDocument(editor.document.uri, {preview: true, preserveFocus: false})
-                    .then(() => {
-                        console.log("now close editor of " + editor.document.uri);
-                        return vscode.commands.executeCommand("workbench.action.closeActiveEditor");
-                    });
-                this.editorProxiesByEditor.delete(editor);
+            editorBinding.onDidDispose(async (binding) => {
+                const uri = binding.editor.document.uri;
+                console.log("now close editor of " + uri);
+                await vscode.workspace.saveAll();
+                await vscode.window.showTextDocument(uri);
+                await vscode.commands.executeCommand("workbench.action.closeActiveEditor");
+                // this.editorProxiesByEditor.delete(editor);
+                this.editorBindingsByUri.delete(uri);
                 this.editorBindingsByEditorProxy.delete(editorProxy);
             });
         }
@@ -305,13 +311,16 @@ export default class GuestPortalBinding implements PortalDelegate {
             bufferBinding = new BufferBinding({
                 buffer,
                 isHost: false,
-                didDispose: () => this.bufferBindingsByBufferProxy.delete(bufferProxy),
+                didDispose: () => {
+                    this.bufferBindingsByBufferProxy.delete(bufferProxy);
+                    this.bufferBindingsByUri.delete(bufferURI);
+                }
             });
 
             bufferBinding.setBufferProxy(bufferProxy);
             bufferProxy.setDelegate(bufferBinding);
 
-            this.bufferBindingsByBuffer.set(buffer, bufferBinding);
+            this.bufferBindingsByUri.set(buffer.uri, bufferBinding);
             this.bufferBindingsByBufferProxy.set(bufferProxy, bufferBinding);
         }
         return [buffer, bufferBinding];

@@ -6,14 +6,15 @@ This plugin can now connect to a [teletype](https://teletype.atom.io/) based co-
 
 TODOs:
 
-- [ ] Add local authentication key storage
-- [ ] Add local portal id storage
+- [x] Add local authentication key storage
+- [x] Add local portal id storage
 - [ ] **Add Share Portal functionality**
 - [ ] Fix wrong peer selection change when sending local text updates
 - [ ] Add pending queue to editor binding
-- [ ] Fix missing disposable handling
+- [ ] Fix missing disposable handling (WIP)
 - [ ] Fix some network issues (connection speed/robustness)
 - [ ] Fix editor switching problems
+- [ ] Fix the chaotic vscode.TextEditors management
 - [ ] ... (something maybe I will come up later)
 
 

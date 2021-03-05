@@ -2,10 +2,11 @@ import * as fs from "fs";
 import * as vscode from "vscode";
 
 import { BufferDelegate, BufferProxy, Position } from "@atom/teletype-client";
+import EditorBinding from "./EditorBinding";
 
 export default class BufferBinding implements BufferDelegate {
     public readonly buffer: vscode.TextDocument;
-    private editor!: vscode.TextEditor;
+    private editorBinding!: EditorBinding;
     private readonly isHost: boolean;
     private bufferProxy!: BufferProxy;
     private onGetText: any;
@@ -74,8 +75,8 @@ export default class BufferBinding implements BufferDelegate {
         this.disableHistory = false;
     }
 
-    setEditor(editor: vscode.TextEditor): void {
-        this.editor = editor;
+    setEditorBinding(editorBinding: EditorBinding): void {
+        this.editorBinding = editorBinding;
     }
 
     async updateText(textUpdates: any[]): Promise<boolean> {
@@ -83,7 +84,8 @@ export default class BufferBinding implements BufferDelegate {
             return true;
         }
         this.disableHistory = true;
-        return this.editor
+        this.editorBinding.editor = await vscode.window.showTextDocument(this.buffer);
+        return this.editorBinding.editor
             .edit(
                 builder => {
                     for (let i = textUpdates.length - 1; i >= 0; i--) {
@@ -136,7 +138,7 @@ export default class BufferBinding implements BufferDelegate {
 
     // callback for vscode text editor
     onDidChangeBuffer(changes: vscode.TextDocumentContentChangeEvent[]): void {
-        if (this.disableHistory) return;
+        if (this.disableHistory || changes.length === 0) return;
         if (this.isInitialize) {
             this.isInitialize = false;
             return;

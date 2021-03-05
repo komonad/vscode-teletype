@@ -10,18 +10,19 @@ interface SiteDecoration {
 }
 
 export default class EditorBinding implements EditorDelegate {
-    public readonly editor: vscode.TextEditor;
+    public editor: vscode.TextEditor;
     private portal: Portal;
     private readonly isHost: boolean;
     private editorProxy!: EditorProxy;
     private localSelectionMap: SelectionMap;
     private disposed!: boolean;
-    private onDispose: () => void = () => {};
+    private onDispose: (binding: EditorBinding) => void = () => {};
     private selectionsBySiteId: any;
     private decorationBySiteId: Map<number, SiteDecoration>;
     private localMarkerSelectionMap: Map<number, SelectionMap>;
+    private decorationCache?: () => void;
 
-    constructor({ editor, portal, isHost }: { editor: any; portal: any; isHost: any }) {
+    constructor({ editor, portal, isHost }: { editor: vscode.TextEditor; portal: Portal; isHost: boolean }) {
         this.editor = editor;
         this.portal = portal;
         this.isHost = isHost;
@@ -32,7 +33,7 @@ export default class EditorBinding implements EditorDelegate {
     }
 
     dispose(): void {
-        this.onDispose();
+        this.onDispose(this);
         this.disposed = true;
     }
 
@@ -40,7 +41,7 @@ export default class EditorBinding implements EditorDelegate {
         return this.disposed;
     }
 
-    onDidDispose(onDispose: () => void): void {
+    onDidDispose(onDispose: (binding: EditorBinding) => void): void {
         this.onDispose = onDispose;
     }
 
@@ -88,9 +89,12 @@ export default class EditorBinding implements EditorDelegate {
         cursorRanges: vscode.Range[],
         selectionRanges: vscode.Range[]
     ): void {
-        const { cursorDecoration, selectionDecoration } = siteDecoration;
-        this.editor.setDecorations(cursorDecoration, cursorRanges);
-        this.editor.setDecorations(selectionDecoration, selectionRanges);
+        this.decorationCache = () => {
+            const { cursorDecoration, selectionDecoration } = siteDecoration;
+            this.editor.setDecorations(cursorDecoration, cursorRanges);
+            this.editor.setDecorations(selectionDecoration, selectionRanges);
+        };
+        this.decorationCache();
     }
 
     private findSiteDecoration(siteId: number): SiteDecoration {
@@ -108,12 +112,8 @@ export default class EditorBinding implements EditorDelegate {
     }
 
     async updateTether(state: number, position: Position): Promise<void> {
-        const editor = await vscode.window.showTextDocument(this.editor.document);
-        if (editor === this.editor) {
-            console.log("editor is the same");
-        } else {
-            console.error("what?");
-        }
+        this.editor = await vscode.window.showTextDocument(this.editor.document);
+        if (this.decorationCache) this.decorationCache();
     }
 
     clearSelectionsForSiteId(siteId: number): void {
