@@ -186,6 +186,7 @@ export default class EditorBinding implements EditorDelegate {
                 color: "rgba(192, 192, 192, 30)",
                 textDecoration: `none; ${this.stringifyCssProperties(nameTagStyleRules)}`,
             },
+            rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
         };
 
         const create = vscode.window.createTextEditorDecorationType;
