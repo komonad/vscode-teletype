@@ -42,7 +42,6 @@ async function initializeTeletypeClient(context: vscode.ExtensionContext): Promi
     }
 }
 
-
 // this method is called when the extension is activated
 // the extension is activated the very first time the command is executed
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
@@ -52,7 +51,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
     const client = await initializeTeletypeClient(context);
 
-    const portalManager = new PortalBindingManager({client});
+    const portalManager = new PortalBindingManager({ client });
 
     const teletypeSignInHandle = vscode.commands.registerCommand(
         "extension.teletype-sign-in",
@@ -74,15 +73,21 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             }
 
             if (!(await client.signIn(autoToken))) {
-                vscode.window.showInformationMessage(
-                    "Invalid authentication token", "Login"
-                ).then(selection => {
-                    if (selection) {
-                        vscode.env.openExternal(vscode.Uri.parse("https://teletype.atom.io/login"));
-                    }
-                });
+                vscode.window
+                    .showInformationMessage("Invalid authentication token", "Login")
+                    .then(selection => {
+                        if (selection) {
+                            vscode.env.openExternal(
+                                vscode.Uri.parse("https://teletype.atom.io/login")
+                            );
+                        }
+                    });
             } else {
-                vscode.window.showInformationMessage("You've signed in as " + client.getLocalUserIdentity().login, "Join Portal")
+                vscode.window
+                    .showInformationMessage(
+                        "You've signed in as " + client.getLocalUserIdentity().login,
+                        "Join Portal"
+                    )
                     .then(_ => vscode.commands.executeCommand("extension.join-portal"));
                 localStorage.update(AUTH_KEY, autoToken);
             }
@@ -131,18 +136,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         }
     );
 
-    const leavePortalHandle = vscode.commands.registerCommand(
-        "extension.leave-portal",
-        () => {
-            console.log("now trying to leave portal");
-            const binding = portalManager.getActivePortalBinding();
-            if (!binding) {
-                vscode.window.showInformationMessage("Cannot leave a non-existent portal");
-            } else {
-                binding.leave();
-            }
+    const leavePortalHandle = vscode.commands.registerCommand("extension.leave-portal", () => {
+        console.log("now trying to leave portal");
+        const binding = portalManager.getActivePortalBinding();
+        if (!binding) {
+            vscode.window.showInformationMessage("Cannot leave a non-existent portal");
+        } else {
+            binding.leave();
         }
-    );
+    });
 
     context.subscriptions.push(
         teletypeSignInHandle,

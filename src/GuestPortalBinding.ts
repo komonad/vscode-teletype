@@ -204,7 +204,6 @@ export default class GuestPortalBinding implements PortalDelegate {
         return Array.from(this.editorProxies);
     }
 
-    // called after portal.setDelegate(this)
     async updateTether(state: number, editorProxy: EditorProxy, position: Position): Promise<void> {
         if (editorProxy) {
             this.lastEditorProxyChangePromise = this.lastEditorProxyChangePromise.then(() =>
@@ -218,9 +217,8 @@ export default class GuestPortalBinding implements PortalDelegate {
                 this.tetherEditorProxyChangeCounter++;
             }
             this.tetherPosition = position;
-
-            return this.lastEditorProxyChangePromise;
         }
+        return this.lastEditorProxyChangePromise;
     }
 
     private async onUpdateTether(state: number, editorProxy: EditorProxy, position: Position) {
@@ -228,9 +226,9 @@ export default class GuestPortalBinding implements PortalDelegate {
             await this.findOrCreateEditorByEditorProxy(editorProxy);
         } else {
             // TODO
-            // this.editorBindingsByEditorProxy.forEach((editorBinding: EditorBinding) =>
-            //     editorBinding.updateTether(state, position)
-            // );
+            this.editorBindingsByEditorProxy.forEach((editorBinding: EditorBinding) =>
+                editorBinding.updateTether(state, undefined)
+            );
             this.editorBindingsByEditorProxy.get(editorProxy)?.updateTether(state, position);
         }
 

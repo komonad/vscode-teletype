@@ -8,7 +8,7 @@ export default class BufferBinding implements BufferDelegate {
     public readonly buffer: vscode.TextDocument;
     private editorBinding!: EditorBinding;
     private readonly isHost: boolean;
-    private bufferProxy!: BufferProxy;
+    public bufferProxy!: BufferProxy;
     private onGetText: any;
     public didDispose: () => any;
     private disposed!: boolean;

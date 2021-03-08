@@ -8,6 +8,7 @@ TODOs:
 
 - [x] Add local authentication key storage
 - [x] Add local portal id storage
+- [ ] Fix wrong guest tether update behaviour
 - [ ] **Add Share Portal functionality**
 - [ ] Fix wrong peer selection change when sending local text updates
 - [ ] Add pending queue to editor binding

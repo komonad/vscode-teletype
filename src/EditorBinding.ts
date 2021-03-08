@@ -13,7 +13,7 @@ export default class EditorBinding implements EditorDelegate {
     public editor: vscode.TextEditor;
     private portal: Portal;
     private readonly isHost: boolean;
-    private editorProxy!: EditorProxy;
+    public editorProxy!: EditorProxy;
     private localSelectionMap: SelectionMap;
     private disposed!: boolean;
     private onDispose: (binding: EditorBinding) => void = () => {};
@@ -111,7 +111,7 @@ export default class EditorBinding implements EditorDelegate {
         return false;
     }
 
-    async updateTether(state: number, position: Position): Promise<void> {
+    async updateTether(state: number, position?: Position): Promise<void> {
         this.editor = await vscode.window.showTextDocument(this.editor.document);
         if (this.decorationCache) this.decorationCache();
     }

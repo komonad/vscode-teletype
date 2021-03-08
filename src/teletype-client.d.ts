@@ -51,7 +51,7 @@ declare module "@atom/teletype-client" {
         updateTether(state: number, editorProxy: EditorProxy, position: Position): Promise<void>;
         updateActivePositions(positionsBySiteId: Position): void;
         hostDidLoseConnection(): void;
-        hostDidLoseConnection(): void;
+        hostDidClosePortal(): void;
         siteDidLeave(siteId: string): void;
         siteDidJoin(siteId: string): void;
         didChangeEditorProxies(): void;
@@ -301,6 +301,7 @@ declare module "@atom/teletype-client" {
     }
 
     export class Portal {
+        id: string;
         constructor(...args: any[]);
 
         activateEditorProxy(...args: any[]): void;
@@ -323,9 +324,9 @@ declare module "@atom/teletype-client" {
 
         broadcastEditorProxySwitch(...args: any[]): void;
 
-        createBufferProxy(...args: any[]): void;
+        createBufferProxy(...args: any[]): BufferProxy;
 
-        createEditorProxy(...args: any[]): void;
+        createEditorProxy(...args: any[]): EditorProxy;
 
         deserializeBufferProxy(...args: any[]): void;
 
@@ -527,7 +528,7 @@ declare module "@atom/teletype-client" {
     export class TeletypeClient {
         constructor(...args: any[]);
 
-        createPortal(...args: any[]): void;
+        createPortal(): Promise<Portal>;
 
         dispose(...args: any[]): void;
 
