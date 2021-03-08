@@ -5,7 +5,6 @@ import { TeletypeClient } from "@atom/teletype-client";
 import GuestPortalBinding from "./GuestPortalBinding";
 
 import * as fetch from "node-fetch";
-// const fetch = require("node-fetch");
 import * as constants from "./constants";
 import { PortalBindingManager } from "./PortalBindingManager";
 const globalAny: any = global;
@@ -53,6 +52,28 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
     const portalManager = new PortalBindingManager({ client });
 
+    async function signIn(authToken: string) {
+        if (!(await client.signIn(authToken))) {
+            vscode.window
+                .showInformationMessage("Invalid authentication token", "Login")
+                .then(selection => {
+                    if (selection) {
+                        vscode.env.openExternal(
+                            vscode.Uri.parse("https://teletype.atom.io/login")
+                        );
+                    }
+                });
+        } else {
+            vscode.window
+                .showInformationMessage(
+                    "You've signed in as " + client.getLocalUserIdentity().login,
+                    "Join Portal"
+                )
+                .then(_ => vscode.commands.executeCommand("extension.join-portal"));
+            localStorage.update(AUTH_KEY, authToken);
+        }
+    }
+
     const teletypeSignInHandle = vscode.commands.registerCommand(
         "extension.teletype-sign-in",
         async () => {
@@ -63,34 +84,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                 return;
             }
 
-            const autoToken = await getAuthToken(localStorage);
+            const authToken = await getAuthToken(localStorage);
 
-            if (!autoToken) {
+            if (!authToken) {
                 vscode.window.showInformationMessage(
                     "Please enter a non-empty authentication token"
                 );
                 return;
             }
-
-            if (!(await client.signIn(autoToken))) {
-                vscode.window
-                    .showInformationMessage("Invalid authentication token", "Login")
-                    .then(selection => {
-                        if (selection) {
-                            vscode.env.openExternal(
-                                vscode.Uri.parse("https://teletype.atom.io/login")
-                            );
-                        }
-                    });
-            } else {
-                vscode.window
-                    .showInformationMessage(
-                        "You've signed in as " + client.getLocalUserIdentity().login,
-                        "Join Portal"
-                    )
-                    .then(_ => vscode.commands.executeCommand("extension.join-portal"));
-                localStorage.update(AUTH_KEY, autoToken);
-            }
+            signIn(authToken);
         }
     );
 
@@ -110,11 +112,24 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
     const joinPortalHandle = vscode.commands.registerCommand("extension.join-portal", async () => {
         if (!client.isSignedIn()) {
-            vscode.window.showInformationMessage("Sign in first", "Sign In").then(_ => {
-                vscode.commands.executeCommand("extension.teletype-sign-in");
-            });
-            return;
-            // await vscode.commands.executeCommand("extension.teletype-sign-in");
+            const legacyAuthToken = localStorage.get<string>(AUTH_KEY);
+
+            if (legacyAuthToken == undefined) {
+                vscode.window.showInformationMessage("Sign in first", "Sign In").then(_ => {
+                    vscode.commands.executeCommand("extension.teletype-sign-in");
+                });
+                return;
+            } else {
+                vscode.window.showInformationMessage("Detected legacy authentication token, signing in.");
+                if (await client.signIn(legacyAuthToken)) {
+                    vscode.window.showInformationMessage(`Signed in as ${client.getLocalUserIdentity().login}.`);
+                } else {
+                    localStorage.update(AUTH_KEY, undefined);
+                    vscode.window.showInformationMessage("Auto sign in failed, please manually signin");
+                    vscode.commands.executeCommand("extension.teletype-sign-in");
+                    return;
+                }
+            }
         }
         const portalIdInput = await getPortalID(localStorage);
         if (!portalIdInput) {
