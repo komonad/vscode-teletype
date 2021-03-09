@@ -84,11 +84,21 @@ export default class EditorBinding implements EditorDelegate {
         this.updateDecorations(siteDecoration, cursorRanges, selectionRanges);
     }
 
+    public showDecoration(): void {
+        if (this.decorationCache) {
+            this.decorationCache();
+        }
+    }
+
     private updateDecorations(
         siteDecoration: SiteDecoration,
         cursorRanges: vscode.Range[],
         selectionRanges: vscode.Range[]
     ): void {
+        // current editor is disposed
+        if (!vscode.window.visibleTextEditors.find(editor => editor == this.editor)) {
+            return;
+        }
         this.decorationCache = () => {
             const { cursorDecoration, selectionDecoration } = siteDecoration;
             this.editor.setDecorations(cursorDecoration, cursorRanges);

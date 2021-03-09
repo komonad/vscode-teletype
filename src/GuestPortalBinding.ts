@@ -35,8 +35,8 @@ export default class GuestPortalBinding implements PortalDelegate {
     private joinEvents: any;
     private editorBindingsByEditorProxy: Map<EditorProxy, EditorBinding>; 
     private bufferBindingsByBufferProxy: Map<BufferProxy, BufferBinding>; 
-    private bufferBindingsByBuffer: Map<vscode.TextDocument, BufferBinding>; // from edit event
-    private editorBindingsByEditor: Map<vscode.TextEditor, EditorBinding>; // from selection event
+    private bufferBindingsByUri: Map<vscode.Uri, BufferBinding>; // from edit event
+    private editorBindingsByUri: Map<vscode.Uri, EditorBinding>; // from selection event
     private editorProxiesByEditor: WeakMap<vscode.TextEditor, EditorProxy>;
     private hostClosedPortal = false;
     private hostLostConnection = false;
@@ -64,8 +64,8 @@ export default class GuestPortalBinding implements PortalDelegate {
         this.lastEditorProxyChangePromise = Promise.resolve();
         this.editorBindingsByEditorProxy = new Map();
         this.bufferBindingsByBufferProxy = new Map();
-        this.bufferBindingsByBuffer = new Map();
-        this.editorBindingsByEditor = new Map();
+        this.bufferBindingsByUri = new Map();
+        this.editorBindingsByUri = new Map();
         this.editorProxiesByEditor = new WeakMap();
         this.onDisposed = onDisposed || (() => {});
         this.tetherEditorProxyChangeCounter = 0;
@@ -108,22 +108,29 @@ export default class GuestPortalBinding implements PortalDelegate {
     }
 
     private onDidChangeVisibleTextEditors(editors: vscode.TextEditor[]) {
-        // TODO?
+        editors.forEach(editor => {
+            const editorBinding = this.editorBindingsByUri.get(editor.document.uri);
+            if (!editorBinding) {
+                return;
+            }
+            editorBinding.editor = editor;
+            editorBinding.showDecoration();
+        });
     }
 
     private onDidChangeTextDocument(event: vscode.TextDocumentChangeEvent) {
-        this.bufferBindingsByBuffer?.get(event.document)?.onDidChangeBuffer(event.contentChanges);
+        this.bufferBindingsByUri?.get(event.document.uri)?.onDidChangeBuffer(event.contentChanges);
     }
 
     private saveDocument(event: vscode.TextDocumentWillSaveEvent) {
-        const bufferBinding = this.bufferBindingsByBuffer.get(event.document);
+        const bufferBinding = this.bufferBindingsByUri.get(event.document.uri);
         if (bufferBinding) {
             event.waitUntil(bufferBinding.requestSavePromise());
         }
     }
 
     private triggerSelectionChanges(event: vscode.TextEditorSelectionChangeEvent) {
-        this.editorBindingsByEditor.get(event.textEditor)?.updateSelections(event.selections);
+        this.editorBindingsByUri.get(event.textEditor.document.uri)?.updateSelections(event.selections);
     }
 
     dispose(): void {
@@ -267,7 +274,7 @@ export default class GuestPortalBinding implements PortalDelegate {
 
             this.editorBindingsByEditorProxy.set(editorProxy, editorBinding);
             // this.editorProxiesByEditor.set(editor, editorProxy);
-            this.editorBindingsByEditor.set(editor, editorBinding);
+            this.editorBindingsByUri.set(editor.document.uri, editorBinding);
 
             editorBinding.onDidDispose(async (binding) => {
                 const uri = binding.editor.document.uri;
@@ -276,7 +283,7 @@ export default class GuestPortalBinding implements PortalDelegate {
                 await vscode.window.showTextDocument(uri); // workaround for closing certain editor
                 await vscode.commands.executeCommand("workbench.action.closeActiveEditor");
                 // this.editorProxiesByEditor.delete(editor);
-                this.editorBindingsByEditor.delete(editor);
+                this.editorBindingsByUri.delete(uri);
                 this.editorBindingsByEditorProxy.delete(editorProxy);
             });
         }
@@ -303,20 +310,20 @@ export default class GuestPortalBinding implements PortalDelegate {
             console.log("wrote file, now open");
 
             buffer = await vscode.workspace.openTextDocument(bufferURI);
-
+            
             bufferBinding = new BufferBinding({
                 buffer,
                 isHost: false,
                 didDispose: () => {
                     this.bufferBindingsByBufferProxy.delete(bufferProxy);
-                    this.bufferBindingsByBuffer.delete(buffer);
+                    this.bufferBindingsByUri.delete(buffer.uri);
                 }
             });
 
             bufferBinding.setBufferProxy(bufferProxy);
             bufferProxy.setDelegate(bufferBinding);
 
-            this.bufferBindingsByBuffer.set(buffer, bufferBinding);
+            this.bufferBindingsByUri.set(buffer.uri, bufferBinding);
             this.bufferBindingsByBufferProxy.set(bufferProxy, bufferBinding);
         }
         return [buffer, bufferBinding];

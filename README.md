@@ -8,14 +8,12 @@ TODOs:
 
 - [x] Add local authentication key storage
 - [x] Add local portal id storage
-- [ ] Fix wrong guest tether update behaviour
-- [ ] **Add Share Portal functionality**
-- [ ] Fix wrong peer selection change when sending local text updates
+- [x] Fix wrong guest tether update behaviour
+- [x] Fix wrong peer selection change when sending local text updates
+- [x] Fix editor switching problems
 - [ ] Add pending queue to editor binding
 - [ ] Fix missing disposable handling (WIP)
-- [ ] Fix some network issues (connection speed/robustness)
-- [ ] Fix editor switching problems
-- [ ] Fix the chaotic vscode.TextEditors management
+- [ ] **Add Share Portal functionality**
 - [ ] ... (something maybe I will come up later)
 
 
