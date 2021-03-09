@@ -85,7 +85,11 @@ export default class BufferBinding implements BufferDelegate {
         this.editorBinding = editorBinding;
     }
 
+    private pendingTextUpdates: TextUdpate[] = [];
+
     async updateText(textUpdates: TextUdpate[]): Promise<boolean> {
+        textUpdates = this.pendingTextUpdates.concat(textUpdates);
+        this.pendingTextUpdates = [];
         if (textUpdates.length === 0) {
             return true;
         }
@@ -109,8 +113,13 @@ export default class BufferBinding implements BufferDelegate {
 
         let result: boolean;
 
-        // is editor closed ?
-        if (this.editorBinding.editor != vscode.window.activeTextEditor) {
+        // is editor alive ?
+        if (this.editorBinding.editor == vscode.window.activeTextEditor) {
+            result = await this.editorBinding.editor.edit(applyEdits, {
+                undoStopBefore: false,
+                undoStopAfter: true,
+            });
+        } else {
             // edit on closed editor should use `vscode.WorkspaceEdit`
             const edit = new vscode.WorkspaceEdit();
             const buffer = this.buffer; // `this` will be shadowed in object literal
@@ -120,17 +129,13 @@ export default class BufferBinding implements BufferDelegate {
                 replace: edit.replace.bind(edit, buffer.uri),
             });
             result = await vscode.workspace.applyEdit(edit);
-        } else {
-            result = await this.editorBinding.editor.edit(applyEdits, {
-                undoStopBefore: false,
-                undoStopAfter: true,
-            });
         }
 
         this.disableHistory = false;
 
         if (!result) {
-            console.error(`perform ${JSON.stringify(textUpdates)}`);
+            console.error(`cannot perform ${JSON.stringify(edits)}`);
+            this.pendingTextUpdates = textUpdates;
         }
         return result;
     }
