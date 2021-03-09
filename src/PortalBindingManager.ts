@@ -1,14 +1,20 @@
 import { TeletypeClient } from "@atom/teletype-client";
 import { Disposable } from "vscode";
 import GuestPortalBinding from "./GuestPortalBinding";
+import { HostPortalBinding } from "./HostPortalBinding";
 
 export class PortalBindingManager implements Disposable {
     private client: TeletypeClient;
     private guestPortalMap: Map<string, GuestPortalBinding> = new Map();
     private activeGuestPortal?: GuestPortalBinding;
+    private hostPortalBinding?: HostPortalBinding;
 
     constructor({ client }: { client: TeletypeClient }) {
         this.client = client;
+    }
+
+    reset(): void {
+        this.activeGuestPortal = this.hostPortalBinding = undefined;
     }
 
     createGuestPortalBinding(portalId: string): GuestPortalBinding {
@@ -24,8 +30,23 @@ export class PortalBindingManager implements Disposable {
         return this.activeGuestPortal = binding;
     }
 
-    getActivePortalBinding(): GuestPortalBinding | undefined {
-        return this.activeGuestPortal;
+    createOrGetHostPortalBinding(): HostPortalBinding {
+        if (this.hostPortalBinding) {
+            return this.hostPortalBinding;
+        }
+        
+        const binding = new HostPortalBinding({
+            client: this.client,
+            onDispose() {
+                // TODO
+            }
+        });
+
+        return this.hostPortalBinding = binding;
+    }
+
+    getActivePortalBinding(): GuestPortalBinding | HostPortalBinding | undefined {
+        return this.activeGuestPortal || this.hostPortalBinding;
     }
 
     private guestPortalDispose(portalId: string) {

@@ -1,4 +1,4 @@
-import { BufferProxy, EditorProxy, FollowState, Portal, PortalDelegate, Position, TeletypeClient } from "@atom/teletype-client";
+import { BufferProxy, EditorProxy, FollowState, Portal, PortalDelegate, Position, PositionMap, TeletypeClient } from "@atom/teletype-client";
 import * as vscode from "vscode";
 import BufferBinding from "./BufferBinding";
 import { CompositeDisposable } from "./CompositeDisposable";
@@ -16,21 +16,29 @@ export class HostPortalBinding implements PortalDelegate {
     private subscriptions: CompositeDisposable = new CompositeDisposable();
     private lastUpdateTetherPromise: Promise<void> = Promise.resolve();
     private onDispose: () => any = () => {};
+    private initialized: boolean = false;
+    
 
     constructor({
         client,
-        portalId,
         onDispose
     }: {
         client: TeletypeClient;
-        portalId: string;
         onDispose: () => any;
     }) {
         this.client = client;
         this.onDispose = onDispose;
     }
 
+    leave(): void {
+        // TODO
+    }
+
     async initialize(): Promise<boolean> {
+        if (this.initialized) { // already initialized
+            return true;
+        }
+
         this.portal = await this.client.createPortal();
         if (!this.portal) {
             return false;
@@ -41,19 +49,15 @@ export class HostPortalBinding implements PortalDelegate {
         const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right);
         statusBar.text = "Teletype";
 
-        vscode.window.showInformationMessage("Portal shared as " + this.portal.id, "Copy Portal Id")
-            .then(_ => {
-                vscode.env.clipboard.writeText(this.portal.id);
-            });
-
+        
         // TODO
         return true;
     }
 
-    private findOrCreateBufferProxyForBuffer(document: vscode.TextDocument): BufferProxy {
+    private findOrCreateBufferProxyForBuffer(document: vscode.TextDocument): [BufferProxy, BufferBinding] {
         let bufferBinding = this.bufferBindingsByUri.get(document.uri);
         if (bufferBinding) {
-            return bufferBinding.bufferProxy;
+            return [bufferBinding.bufferProxy, bufferBinding];
         }
         bufferBinding = new BufferBinding({
             buffer: document,
@@ -70,7 +74,7 @@ export class HostPortalBinding implements PortalDelegate {
         this.bufferBindingsByUri.set(document.uri, bufferBinding);
         this.bufferBindingsByBufferProxy.set(bufferProxy, bufferBinding);
 
-        return bufferProxy;
+        return [bufferProxy, bufferBinding];
     }
 
     private findOrCreateEditorProxyForEditor(editor: vscode.TextEditor): EditorProxy {
@@ -80,11 +84,13 @@ export class HostPortalBinding implements PortalDelegate {
             return editorBinding.editorProxy;
         }
 
-        const bufferProxy = this.findOrCreateBufferProxyForBuffer(editor.document);
+        const [bufferProxy, bufferBinding] = this.findOrCreateBufferProxyForBuffer(editor.document);
         const editorProxy = this.portal.createEditorProxy({bufferProxy});
 
         editorBinding = new EditorBinding({editor, portal: this.portal, isHost: true});
         editorBinding.setEditorProxy(editorProxy);
+        
+        bufferBinding.setEditorBinding(editorBinding);
         editorProxy.setDelegate(editorBinding);
 
         this.editorBindingsByUri.set(uri, editorBinding);
@@ -103,9 +109,19 @@ export class HostPortalBinding implements PortalDelegate {
         this.subscriptions.add(
             vscode.workspace.onDidOpenTextDocument(this.onDidOpenTextDocument.bind(this)),
             vscode.workspace.onDidCloseTextDocument(this.onDidCloseTextDocument.bind(this)),
+            vscode.workspace.onDidChangeTextDocument(this.onDidChangeTextDocument.bind(this)),
             vscode.window.onDidChangeActiveTextEditor(this.onDidChangeActiveTextEditor.bind(this)),
+            vscode.window.onDidChangeVisibleTextEditors(this.onDidChangeVisibleTextEditors.bind(this)),
             vscode.window.onDidChangeTextEditorSelection(this.onDidChangeTextEditorSelection.bind(this)),
         );
+    }
+
+    private onDidChangeVisibleTextEditors(e: vscode.TextEditor[]) {
+        // TODO
+    }
+
+    private onDidChangeTextDocument(e: vscode.TextDocumentChangeEvent) {
+        this.bufferBindingsByUri.get(e.document.uri)?.onDidChangeBuffer(e.contentChanges);
     }
 
     private onDidChangeActiveTextEditor(e: vscode.TextEditor | undefined) {
@@ -118,18 +134,25 @@ export class HostPortalBinding implements PortalDelegate {
     }
 
     private onDidChangeTextEditorSelection(e: vscode.TextEditorSelectionChangeEvent) {
-
+        const editorBinding = this.editorBindingsByUri.get(e.textEditor.document.uri);
+        editorBinding?.updateSelections(e.selections);
     }
 
     private onDidOpenTextDocument(doc: vscode.TextDocument) {
-
+        // TODO
+        
+        // this.findOrCreateBufferProxyForBuffer(doc);
+        // console.log(`opened doc with uri ${doc.uri.toString()}`);
     }
 
     private onDidCloseTextDocument(doc: vscode.TextDocument) {
-
+        // TODO
     }
 
-    dispose(): void {}
+    dispose(): void {
+        this.portal.dispose();
+    }
+
     async updateTether(state: number, editorProxy: EditorProxy, position: Position): Promise<void> {
         if (editorProxy) {
             this.lastUpdateTetherPromise = this.lastUpdateTetherPromise.then(() => {
@@ -140,19 +163,34 @@ export class HostPortalBinding implements PortalDelegate {
     }
 
     private async onUpdateTether(followState: number, editorProxy: EditorProxy, position: Position) {
+        // I don't know exactly what the following code means, I just copied it from Atom's teletype
         const editorBinding = this.editorBindingsByEditorProxy.get(editorProxy);
+        if (!editorBinding) {
+            console.warn(`unexpected editorProxy as ${JSON.stringify(editorProxy)}`);
+            return;
+        }
+        if (followState === FollowState.RETRACTED) {
+            editorBinding.editor = await vscode.window.showTextDocument(editorBinding.editor.document);
+            if (position) {
+                editorBinding.updateTether(followState, position);
+            }
+        } else {
+            this.editorBindingsByEditorProxy.forEach(e => e.updateTether(followState));
+        }
+    }
+
+    updateActivePositions(positionsBySiteId: PositionMap): void {
         // TODO
     }
 
-    updateActivePositions(positionsBySiteId: Position): void {
-
-    }
     hostDidLoseConnection(): void {
-
+        console.log("Host lost connection");
     }
+    
     hostDidClosePortal(): void {
-
+        console.log("host closed portal");
     }
+
     siteDidLeave(siteId: string): void {
         const {login} = this.portal.getSiteIdentity(siteId);
         vscode.window.showInformationMessage(`@${login} has left your portal`);

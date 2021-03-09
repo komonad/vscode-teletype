@@ -10,6 +10,7 @@ import {
     Position,
     PortalDelegate,
     EditorDelegate,
+    PositionMap,
 } from "@atom/teletype-client";
 import BufferBinding from "./BufferBinding";
 import EditorBinding from "./EditorBinding";
@@ -337,7 +338,7 @@ export default class GuestPortalBinding implements PortalDelegate {
         return this.tetherPosition;
     }
 
-    updateActivePositions(positionsBySiteId: Position): void {
+    updateActivePositions(positionsBySiteId: PositionMap): void {
         // this.sitePositionsComponent.update({positionsBySiteId})
     }
 

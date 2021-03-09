@@ -30,6 +30,10 @@ declare module "@atom/teletype-client" {
         [markerId: number]: Selection;
     }
 
+    export interface PositionMap {
+        [siteId: number]: Position;
+    }
+
     export interface BufferDelegate {
         dispose(): void;
         setText(text: string): void;
@@ -49,7 +53,7 @@ declare module "@atom/teletype-client" {
     export interface PortalDelegate {
         dispose(): void;
         updateTether(state: number, editorProxy: EditorProxy, position: Position): Promise<void>;
-        updateActivePositions(positionsBySiteId: Position): void;
+        updateActivePositions(positionsBySiteId: PositionMap): void;
         hostDidLoseConnection(): void;
         hostDidClosePortal(): void;
         siteDidLeave(siteId: string): void;
@@ -404,7 +408,7 @@ declare module "@atom/teletype-client" {
 
         unfollow(...args: any[]): void;
 
-        updateActivePositions(...args: any[]): void;
+        updateActivePositions(): void;
     }
 
     export class PubSubSignalingProvider {

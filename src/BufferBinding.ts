@@ -175,7 +175,7 @@ export default class BufferBinding implements BufferDelegate {
     // callback for vscode text editor
     onDidChangeBuffer(changes: vscode.TextDocumentContentChangeEvent[]): void {
         if (this.disableHistory || changes.length === 0) return;
-        if (this.isInitialize) {
+        if (this.isInitialize && !this.isHost) {
             this.isInitialize = false;
             return;
         }

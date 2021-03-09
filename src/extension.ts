@@ -7,6 +7,7 @@ import GuestPortalBinding from "./GuestPortalBinding";
 import * as fetch from "node-fetch";
 import * as constants from "./constants";
 import { PortalBindingManager } from "./PortalBindingManager";
+import { HostPortalBinding } from "./HostPortalBinding";
 const globalAny: any = global;
 const wrtc: any = require("wrtc");
 
@@ -44,7 +45,6 @@ async function initializeTeletypeClient(context: vscode.ExtensionContext): Promi
 // this method is called when the extension is activated
 // the extension is activated the very first time the command is executed
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
-    console.log("Great, your extension \"vscode-teletype\" is now active!");
 
     const localStorage: vscode.Memento = context.globalState;
 
@@ -110,7 +110,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         }
     );
 
-    const joinPortalHandle = vscode.commands.registerCommand("extension.join-portal", async () => {
+    async function autoSignIn(): Promise<boolean> {
         if (!client.isSignedIn()) {
             const legacyAuthToken = localStorage.get<string>(AUTH_KEY);
 
@@ -118,7 +118,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                 vscode.window.showInformationMessage("Sign in first", "Sign In").then(_ => {
                     vscode.commands.executeCommand("extension.teletype-sign-in");
                 });
-                return;
+                return false;
             } else {
                 vscode.window.showInformationMessage("Detected legacy authentication token, signing in.");
                 if (await client.signIn(legacyAuthToken)) {
@@ -127,18 +127,23 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                     localStorage.update(AUTH_KEY, undefined);
                     vscode.window.showInformationMessage("Auto sign in failed, please manually signin");
                     vscode.commands.executeCommand("extension.teletype-sign-in");
-                    return;
+                    return false;
                 }
             }
+        }
+        return true;
+    }
+
+    const joinPortalHandle = vscode.commands.registerCommand("extension.join-portal", async () => {
+        if (!await autoSignIn()) {
+            return;
         }
         const portalIdInput = await getPortalID(localStorage);
         if (!portalIdInput) {
             vscode.window.showInformationMessage("No Portal ID has been entered. Please try again");
         } else {
             vscode.window.showInformationMessage(`Trying to Join Portal with ID ${portalIdInput}`);
-            if (!(await joinPortal(portalIdInput, portalManager))) {
-                vscode.window.showWarningMessage("Some errors occurred");
-            } else {
+            if (await joinPortal(portalIdInput, portalManager)) {
                 localStorage.update(PORTAL_ID_KEY, portalIdInput);
             }
         }
@@ -147,7 +152,22 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     const sharePortalHandle = vscode.commands.registerCommand(
         "extension.share-portal",
         async () => {
-            // TODO
+            if (!await autoSignIn()) {
+                return;
+            }
+            const portalBinding = portalManager.createOrGetHostPortalBinding();
+            if (!await portalBinding.initialize()) {
+                vscode.window.showErrorMessage("Share portal failed because of some reason");
+            } else {
+                vscode.window.showInformationMessage("Portal shared as " + portalBinding.portal.id, "Copy Portal Id", "Copy Atom Portal")
+                    .then(selection => {
+                        if (selection === "Copy Portal Id") {
+                            vscode.env.clipboard.writeText(portalBinding.portal.id);
+                        } else if (selection === "Copy Atom Portal") {
+                            vscode.env.clipboard.writeText("atom://teletype/portal/" + portalBinding.portal.id);
+                        }
+                    });
+            }
         }
     );
 
@@ -169,6 +189,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         leavePortalHandle,
         portalManager
     );
+
+    console.log("Great, your extension \"vscode-teletype\" is now active!");
+
 }
 
 async function loginWithToken(
