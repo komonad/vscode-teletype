@@ -112,8 +112,7 @@ export default class EditorBinding implements EditorDelegate {
     }
 
     async updateTether(state: number, position?: Position): Promise<void> {
-        this.editor = await vscode.window.showTextDocument(this.editor.document);
-        if (this.decorationCache) this.decorationCache();
+        // TODO
     }
 
     clearSelectionsForSiteId(siteId: number): void {

@@ -3,6 +3,7 @@ import * as vscode from "vscode";
 
 import { BufferDelegate, BufferProxy, Position } from "@atom/teletype-client";
 import EditorBinding from "./EditorBinding";
+import { toVscodePosition } from "./utils";
 
 export default class BufferBinding implements BufferDelegate {
     public readonly buffer: vscode.TextDocument;
@@ -56,7 +57,7 @@ export default class BufferBinding implements BufferDelegate {
     isDisposed(): boolean {
         return this.disposed;
     }
-    
+
     getText(): any {
         if (typeof this.onGetText === "function") {
             return this.onGetText();
@@ -84,16 +85,25 @@ export default class BufferBinding implements BufferDelegate {
             return true;
         }
         this.disableHistory = true;
-        this.editorBinding.editor = await vscode.window.showTextDocument(this.buffer);
         return this.editorBinding.editor
             .edit(
                 builder => {
                     for (let i = textUpdates.length - 1; i >= 0; i--) {
-                        const textUpdate = textUpdates[i];
-                        builder.replace(
-                            this.createRange(textUpdate.oldStart, textUpdate.oldEnd),
-                            textUpdate.newText
-                        );
+                        const {
+                            oldStart,
+                            oldEnd,
+                            newText,
+                        }: {
+                            oldStart: Position;
+                            oldEnd: Position;
+                            newText: string;
+                        } = textUpdates[i];
+
+                        if (oldStart.column === oldEnd.column && oldStart.row === oldEnd.row) {
+                            builder.insert(toVscodePosition(oldStart), newText);
+                        } else {
+                            builder.replace(this.createRange(oldStart, oldEnd), newText);
+                        }
                     }
                 },
                 { undoStopBefore: false, undoStopAfter: true }
