@@ -1,9 +1,14 @@
 import * as fs from "fs";
 import * as vscode from "vscode";
 
-import { BufferDelegate, BufferProxy, Position } from "@atom/teletype-client";
+import { BufferDelegate, BufferProxy, Position, TextUdpate } from "@atom/teletype-client";
 import EditorBinding from "./EditorBinding";
-import { toVscodePosition } from "./utils";
+import { toVscodePosition, toVscodeRange } from "./utils";
+
+interface Editable {
+    insert(position: vscode.Position, text: string): void;
+    replace(range: vscode.Range, text: string): void;
+}
 
 export default class BufferBinding implements BufferDelegate {
     public readonly buffer: vscode.TextDocument;
@@ -80,38 +85,54 @@ export default class BufferBinding implements BufferDelegate {
         this.editorBinding = editorBinding;
     }
 
-    async updateText(textUpdates: any[]): Promise<boolean> {
+    async updateText(textUpdates: TextUdpate[]): Promise<boolean> {
         if (textUpdates.length === 0) {
             return true;
         }
-        this.disableHistory = true;
-        return this.editorBinding.editor
-            .edit(
-                builder => {
-                    for (let i = textUpdates.length - 1; i >= 0; i--) {
-                        const {
-                            oldStart,
-                            oldEnd,
-                            newText,
-                        }: {
-                            oldStart: Position;
-                            oldEnd: Position;
-                            newText: string;
-                        } = textUpdates[i];
 
-                        if (oldStart.column === oldEnd.column && oldStart.row === oldEnd.row) {
-                            builder.insert(toVscodePosition(oldStart), newText);
-                        } else {
-                            builder.replace(this.createRange(oldStart, oldEnd), newText);
-                        }
-                    }
-                },
-                { undoStopBefore: false, undoStopAfter: true }
-            )
-            .then(result => {
-                this.disableHistory = false;
-                return result;
+        const edits: [vscode.Range, string][] = textUpdates.map(({ oldStart, oldEnd, newText }) => [
+            this.createRange(oldStart, oldEnd),
+            newText,
+        ]);
+
+        const applyEdits = (editable: Editable) => {
+            edits.forEach(([range, text]) => {
+                if (range.start.isEqual(range.end)) {
+                    editable.insert(range.start, text);
+                } else {
+                    editable.replace(range, text);
+                }
             });
+        };
+
+        this.disableHistory = true;
+
+        let result: boolean;
+
+        // is editor closed ?
+        if (this.editorBinding.editor != vscode.window.activeTextEditor) {
+            // edit on closed editor should use `vscode.WorkspaceEdit`
+            const edit = new vscode.WorkspaceEdit();
+            const buffer = this.buffer; // `this` will be shadowed in object literal
+
+            applyEdits({
+                insert: edit.insert.bind(edit, buffer.uri),
+                replace: edit.replace.bind(edit, buffer.uri),
+            });
+            result = await vscode.workspace.applyEdit(edit);
+        } else {
+            result = await this.editorBinding.editor.edit(applyEdits, {
+                undoStopBefore: false,
+                undoStopAfter: true,
+            });
+        }
+
+        this.disableHistory = false;
+
+        if (!result) {
+            console.error(`perform ${JSON.stringify(textUpdates)}`);
+        }
+        return result;
     }
 
     traverse(start: Position, distance: Position): Position {
