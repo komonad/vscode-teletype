@@ -3,6 +3,7 @@ import * as vscode from "vscode";
 import BufferBinding from "./BufferBinding";
 import { CompositeDisposable } from "./CompositeDisposable";
 import EditorBinding from "./EditorBinding";
+import { getHistory } from "./utils";
 
 export class HostPortalBinding implements PortalDelegate {
     private client: TeletypeClient;
@@ -46,10 +47,15 @@ export class HostPortalBinding implements PortalDelegate {
         this.portal.setDelegate(this);
         this.registerWorkspaceEvents();
 
-        const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right);
-        statusBar.text = "Teletype";
+        vscode.window.visibleTextEditors.forEach(editor => {
+            this.onDidChangeActiveTextEditor(editor);
+        });
 
-        
+        const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right);
+        statusBar.text = "$(light-blub) Share";
+        statusBar.command = "extension.teletype-share-portal";
+        statusBar.show();
+
         // TODO
         return true;
     }
@@ -66,7 +72,8 @@ export class HostPortalBinding implements PortalDelegate {
         });
 
         const bufferProxy = this.portal.createBufferProxy({
-            uri: document.uri
+            uri: bufferBinding.getProxyUri(),
+            history: getHistory(document, 0), // FIXME: implement check point
         });
 
         bufferProxy.setDelegate(bufferBinding);

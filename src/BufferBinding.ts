@@ -59,6 +59,13 @@ export default class BufferBinding implements BufferDelegate {
         this.didDispose();
     }
 
+    getProxyUri(): string {
+        if (this.buffer.isUntitled) {
+            return "Untitiled";
+        }
+        return vscode.workspace.asRelativePath(this.buffer.uri);
+    }
+
     isDisposed(): boolean {
         return this.disposed;
     }

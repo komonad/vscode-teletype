@@ -1,5 +1,17 @@
-import { Position, Range, Selection } from "@atom/teletype-client";
+import { Position, Range, Selection, TextUdpate } from "@atom/teletype-client";
 import * as vscode from "vscode";
+
+export interface TextOperation {
+    type: string,
+    changes: TextUdpate[],
+}
+
+export interface CrdtHisotry {
+    baseText: string,
+    nextCheckPointId: number,
+    undoStack: TextOperation[],
+    redoStack: TextOperation[],
+}
 
 export function getWholeRange(document: vscode.TextDocument): vscode.Range {
     const firstLine = document.lineAt(0);
@@ -37,4 +49,13 @@ export function fromSelectionToRange(selection: Selection): Range {
             end: end,
         };
     }
+}
+
+export function getHistory(document: vscode.TextDocument, nextCheckPointId: number): CrdtHisotry {
+    return {
+        baseText: document.getText(),
+        nextCheckPointId,
+        undoStack: [],
+        redoStack: []
+    };
 }
