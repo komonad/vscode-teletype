@@ -7,7 +7,7 @@
 	"version": "0.0.1",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/Rijul5/vscode-teletype.git"
+		"url": "https://github.com/komonad/vscode-teletype.git"
 	},
 	"engines": {
 		"vscode": "^1.35.0"
@@ -30,6 +30,10 @@
 			{
 				"command": "extension.share-portal",
 				"title": "VSCode Teletype: Share Portal"
+			},
+			{
+				"command": "extension.close-portal",
+				"title": "VSCode Teletype: Close Portal"	
 			},
 			{
 				"command": "extension.leave-portal",

@@ -24,25 +24,29 @@ export class PortalBindingManager implements Disposable {
             editor: undefined,
             onDisposed: () => {
                 this.guestPortalDispose(portalId);
-            }
+            },
         });
         this.guestPortalMap.set(portalId, binding);
-        return this.activeGuestPortal = binding;
+        return (this.activeGuestPortal = binding);
     }
 
     createOrGetHostPortalBinding(): HostPortalBinding {
         if (this.hostPortalBinding) {
             return this.hostPortalBinding;
         }
-        
+
         const binding = new HostPortalBinding({
             client: this.client,
-            onDispose() {
-                // TODO
-            }
+            onDispose: () => {
+                this.hostPortalDispose();
+            },
         });
 
-        return this.hostPortalBinding = binding;
+        return (this.hostPortalBinding = binding);
+    }
+
+    getHostPortalBinding(): HostPortalBinding | undefined {
+        return this.hostPortalBinding;
     }
 
     getActivePortalBinding(): GuestPortalBinding | HostPortalBinding | undefined {
@@ -55,9 +59,21 @@ export class PortalBindingManager implements Disposable {
         this.guestPortalMap.delete(portalId);
     }
 
+    private hostPortalDispose() {
+        this.hostPortalBinding = undefined;
+    }
+
     async dispose(): Promise<void> {
-        await Promise.all(Array.from(this.guestPortalMap.values())
-            .map(async portalBinding => portalBinding?.leave()));
+        const promises: Promise<void>[] = [];
+        if (this.hostPortalBinding) {
+            promises.push((async _ => {
+                this.hostPortalBinding?.dispose();
+            })());
+        }
+        promises.push(...Array.from(this.guestPortalMap.values()).map(async portalBinding =>
+            portalBinding?.leave()
+        ));
+        await Promise.all(promises);
         return;
     }
 }

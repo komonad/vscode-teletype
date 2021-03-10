@@ -18,7 +18,6 @@ export class HostPortalBinding implements PortalDelegate {
     private lastUpdateTetherPromise: Promise<void> = Promise.resolve();
     private onDispose: () => any = () => {};
     private initialized: boolean = false;
-    
 
     constructor({
         client,
@@ -31,8 +30,18 @@ export class HostPortalBinding implements PortalDelegate {
         this.onDispose = onDispose;
     }
 
+    dispose(): void {
+        this.portal.dispose();
+        this.onDispose();
+    }
+
     leave(): void {
         // TODO
+    }
+
+    close(): void {
+        // TODO
+        this.portal.dispose();
     }
 
     async initialize(): Promise<boolean> {
@@ -156,9 +165,6 @@ export class HostPortalBinding implements PortalDelegate {
         // TODO
     }
 
-    dispose(): void {
-        this.portal.dispose();
-    }
 
     async updateTether(state: number, editorProxy: EditorProxy, position: Position): Promise<void> {
         if (editorProxy) {
@@ -206,6 +212,7 @@ export class HostPortalBinding implements PortalDelegate {
         const {login} = this.portal.getSiteIdentity(siteId);
         vscode.window.showInformationMessage(`@${login} has joined your portal`);
     }
+
     didChangeEditorProxies(): void {
 
     }
