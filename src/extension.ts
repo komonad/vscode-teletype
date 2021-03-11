@@ -13,6 +13,7 @@ const wrtc: any = require("wrtc");
 
 const PORTAL_ID_KEY = "teletype-portal-id";
 const AUTH_KEY = "teletype-auth-key";
+const ATOM_PORTAL_URI = "atom://teletype/portal/";
 
 globalAny.window = {};
 globalAny.window = global;
@@ -37,7 +38,7 @@ async function initializeTeletypeClient(context: vscode.ExtensionContext): Promi
         await client.initialize();
         return client;
     } catch (err) {
-        error("Teletype client initialize failed with message " + err.message);
+        error("Teletype client initialize failed with message: " + err.message);
         throw err;
     }
 }
@@ -67,7 +68,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                         "You've signed in as " + client.getLocalUserIdentity().login,
                         "Join Portal"
                     )
-                    .then(_ => vscode.commands.executeCommand("extension.join-portal"));
+                    .then(selection => {
+                        if (selection == "Join Portal") {
+                            vscode.commands.executeCommand("extension.join-portal");
+                        }
+                    });
                 localStorage.update(AUTH_KEY, authToken);
             }
         } catch (e) {
@@ -79,14 +84,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         "extension.teletype-sign-in",
         async () => {
             if (client.isSignedIn()) {
-                info("Already signed in, log out first if you want to change user");
+                info("Already signed in, log out first if you want to change user.");
                 return;
             }
 
             const authToken = await getAuthToken(localStorage);
 
             if (!authToken) {
-                info("Please enter a non-empty authentication token");
+                info("Please enter a non-empty authentication token.");
                 return;
             }
             signIn(authToken);
@@ -101,7 +106,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                 return;
             }
             client.signOut();
-            info("Signed out, now you can change your authentication token");
+            info("Signed out, now you can change your authentication token.");
         }
     );
 
@@ -133,10 +138,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         if (!(await autoSignIn())) {
             return;
         }
-        const portalIdInput = await getPortalID(localStorage);
+        let portalIdInput = await getPortalID(localStorage);
         if (!portalIdInput) {
-            info("No Portal ID has been entered. Please try again");
+            info("No Portal ID has been entered. Please try again.");
         } else {
+            if (portalIdInput.startsWith(ATOM_PORTAL_URI)) {
+                portalIdInput = portalIdInput.substring(ATOM_PORTAL_URI.length);
+            }
             info(`Trying to Join Portal with ID ${portalIdInput}`);
             if (await joinPortal(portalIdInput, portalManager)) {
                 localStorage.update(PORTAL_ID_KEY, portalIdInput);
@@ -151,25 +159,36 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
                 return;
             }
             const portalBinding = portalManager.createOrGetHostPortalBinding();
-            if (!(await portalBinding.initialize())) {
-                error("Share portal failed because of some reason");
-            } else {
-                vscode.window
-                    .showInformationMessage(
-                        "Portal shared as " + portalBinding.portal.id,
-                        "Copy Portal Id",
-                        "Copy Atom Portal"
-                    )
-                    .then(selection => {
-                        if (selection === "Copy Portal Id") {
-                            vscode.env.clipboard.writeText(portalBinding.portal.id);
-                        } else if (selection === "Copy Atom Portal") {
-                            vscode.env.clipboard.writeText(
-                                "atom://teletype/portal/" + portalBinding.portal.id
-                            );
-                        }
-                    });
+
+            let result: boolean;
+            try {
+                result = await portalBinding.initialize();
+            } catch (e) {
+                error("Share portal failed with exception: " + e);
+                return;
             }
+
+
+            if (!result) {
+                error("Share portal failed because of some reason.");
+                return;
+            } 
+            
+            vscode.window
+                .showInformationMessage(
+                    "Portal shared as " + portalBinding.portal.id,
+                    "Copy Portal Id",
+                    "Copy Atom Portal"
+                )
+                .then(selection => {
+                    if (selection === "Copy Portal Id") {
+                        vscode.env.clipboard.writeText(portalBinding.portal.id);
+                    } else if (selection === "Copy Atom Portal") {
+                        vscode.env.clipboard.writeText(
+                            ATOM_PORTAL_URI + portalBinding.portal.id
+                        );
+                    }
+                });
         }
     );
 
@@ -178,8 +197,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         if (!portalBinding) {
             info("Host portal is not active");
         } else {
-            portalBinding.close();
-            info("Host portal closed");
+            try {
+                portalBinding.close();
+                info("Host portal closed gracefully.");
+            } catch (e) {
+                error(`Cannot close portal gracefully, exception: ${e}`);
+            }
         }
     });
 
@@ -193,7 +216,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         } else if (binding instanceof GuestPortalBinding) {
             binding.leave();
         } else {
-            info("Cannot leave a non-existent portal");
+            info("Cannot leave a non-existent portal.");
         }
     });
 

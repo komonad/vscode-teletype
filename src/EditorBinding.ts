@@ -34,6 +34,11 @@ export default class EditorBinding implements EditorDelegate {
 
     dispose(): void {
         this.onDispose(this);
+        if (vscode.window.visibleTextEditors.includes(this.editor)) {
+            this.decorationBySiteId.forEach(deco => {
+                this.updateDecorations(deco, [], []);
+            });
+        }
         this.disposed = true;
     }
 
@@ -181,14 +186,14 @@ export default class EditorBinding implements EditorDelegate {
             padding: "0px 5px 0px 0px",
             display: "inline-block",
             "z-index": 1,
-            "border-radius": "20px",
+            "border-radius": "5px",
             "font-size": "15px",
-            "font-weight": "bold",
+            "font-weight": "regular",
         };
 
         const curosrDecorationRenderOption: vscode.DecorationRenderOptions = {
             border: "solid rgba(122, 34, 210, 0.6)",
-            borderWidth: "5px 5px 5px 5px",
+            borderWidth: "1px 1px 1px 1px",
             after: {
                 contentText: siteLogin,
                 backgroundColor: "rgba(122, 34, 210, 0.6)",

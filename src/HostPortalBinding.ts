@@ -31,7 +31,6 @@ export class HostPortalBinding implements PortalDelegate {
     }
 
     dispose(): void {
-        this.portal.dispose();
         this.onDispose();
     }
 

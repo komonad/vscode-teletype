@@ -18,7 +18,10 @@
 	"activationEvents": [
 		"onCommand:extension.join-portal",
 		"onCommand:extension.share-portal",
-		"onCommand:extension.teletype-sign-in"
+		"onCommand:extension.close-portal",
+		"onCommand:extension.leave-portal",
+		"onCommand:extension.teletype-sign-in",
+		"onCommand:extension.teletype-sign-out"
 	],
 	"main": "./out/extension.js",
 	"contributes": {
