@@ -3,7 +3,7 @@
 	"displayName": "vscode-teletype",
 	"description": "VS Code Teletype extension for Creating CoEditing skeleton for Eclipse Che and Theia",
 	"types": "dist/index.d.ts",
-	"publisher": "redhat",
+	"publisher": "comonad",
 	"version": "0.0.1",
 	"repository": {
 		"type": "git",

@@ -81,7 +81,7 @@ export class HostPortalBinding implements PortalDelegate {
 
         const bufferProxy = this.portal.createBufferProxy({
             uri: bufferBinding.getProxyUri(),
-            history: getHistory(document, 0), // FIXME: implement check point
+            text: document.getText(),
         });
 
         bufferProxy.setDelegate(bufferBinding);
