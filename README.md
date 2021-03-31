@@ -2,7 +2,7 @@
 
 Current state:
 
-This plugin can now connect to a [teletype](https://teletype.atom.io/) based co-editing system as a *guest*.
+This plugin can now connect to a [teletype](https://teletype.atom.io/) based co-editing system as a *guest* or create a shared workspace as a *host*.
 
 TODOs:
 
